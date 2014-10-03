@@ -48,6 +48,8 @@ ompl::base::PredefinedStateSampler::PredefinedStateSampler(const std::vector<con
 
 void ompl::base::PredefinedStateSampler::sampleUniform(State *state)
 {
+    if (idxToSample_ >= states_.size())
+        throw Exception("All the predefined states have been already sampled.");
     space_->copyState(state, states_[idxToSample_]);
     ++idxToSample_;
 }
