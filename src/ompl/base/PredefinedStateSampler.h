@@ -50,8 +50,8 @@ namespace ompl
         {
         public:
 
-            /** \brief Constructor. Takes the set of states to be sampled in the same order as the vector indexing. */
-            PredefinedStateSampler(const std::vector<const State*> &states);
+            /** \brief Constructor. Takes the state space and set of states to be sampled in the same order as the vector indexing. */
+            PredefinedStateSampler(const StateSpace *space, const std::vector<const State*> &states);
 
             /** \brief It will sample the next predefined state to sample. The name has been kept because of API compatibility.
              * If no more unsampled states are available, it will throw an exception. */

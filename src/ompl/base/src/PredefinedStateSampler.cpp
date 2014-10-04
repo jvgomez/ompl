@@ -38,8 +38,8 @@
 #include "ompl/base/StateSpace.h"
 #include "ompl/util/Exception.h"
 
-ompl::base::PredefinedStateSampler::PredefinedStateSampler(const std::vector<const State*> &states) :
-    StateSampler(NULL), states_(states)
+ompl::base::PredefinedStateSampler::PredefinedStateSampler(const StateSpace *space, const std::vector<const State*> &states) :
+    StateSampler(space), states_(states)
 {
     if (states_.empty())
         throw Exception("Empty set of states to sample from was specified");
