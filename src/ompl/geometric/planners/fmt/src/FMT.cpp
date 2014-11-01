@@ -385,7 +385,7 @@ bool ompl::geometric::FMT::expandTreeFromNode(Motion *&z)
             saveNeighborhood(x);
             if (nearestK_) {
                 // Relies on NN datastructure returning k-nearest in sorted order
-                if (opt_->motionCost(z->getState(), x->getState()).v <= opt_->motionCost(neighborhoods_[x].back()->getState(), x->getState()).v)
+                if (opt_->motionCost(z->getState(), x->getState()).value() <= opt_->motionCost(neighborhoods_[x].back()->getState(), x->getState()).value())
                     xNear.push_back(zNeighborhood[i]);
             } else {
                 xNear.push_back(x);
