@@ -50,6 +50,10 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
+bool heuristics = false;
+bool nearestK = true;
+bool cacheCC = true;
+
 struct Path2D
 {
     std::vector<ob::State*> spath_;
@@ -314,6 +318,9 @@ int main(int argc, char ** argv)
         Test2D<og::FMT> test_planner((path / "ppm/floor.ppm").string().c_str());
 
         test_planner.getPlanner()->as<og::FMT>()->setNumSamples(config.n_samples_[i]);
+        test_planner.getPlanner()->as<og::FMT>()->setNearestK(nearestK);
+        //test_planner.getPlanner()->as<og::FMT>()->setHeuristics(heuristics);
+        //test_planner.getPlanner()->as<og::FMT>()->setCacheCC(cacheCC);
         test_planner.setStateSamplerAllocator(pssa);
 
         if (test_planner.plan(0,0, 1859, 1568, config.max_time_)
@@ -336,10 +343,13 @@ int main(int argc, char ** argv)
     bool warn = false;
     for (size_t i = 0; i < config.exp_; ++i)
     {
+        bool local_warn = false;
+        std::cout << "[TEST " << i << "] ------------------- "<< std::endl;
         if (abs(paths[i].cost_ - result_paths[i].cost_) > std::numeric_limits<double>::epsilon())
         {
             warn = true;
-            std::cout << "WARNING: Path costs are different:" << std::endl;
+            local_warn = true;
+            std::cout << "[WARNING]: Path costs are different:" << std::endl;
             std::cout << "\t" << "Exp: " << i << std::endl;
             std::cout << "\t" << "N: " << config.n_samples_[i] << std::endl;
             std::cout << "\t" << "Real cost: " << paths[i].cost_ << std::endl;
@@ -350,7 +360,8 @@ int main(int argc, char ** argv)
         if ((paths[i].time_/result_paths[i].time_) < 0.5 || (result_paths[i].time_/paths[i].time_) < 0.5 )
         {
             warn = true;
-            std::cout << "WARNING: Computation times differ too much:" << std::endl;
+            local_warn = true;
+            std::cout << "[WARNING]: Computation times differ too much:" << std::endl;
             std::cout << "\t" << "Exp: " << i << std::endl;
             std::cout << "\t" << "N: " << config.n_samples_[i] << std::endl;
             std::cout << "\t" << "Real time: " << paths[i].time_ << std::endl;
@@ -362,10 +373,14 @@ int main(int argc, char ** argv)
         if (diff_states)
         {
             warn = true;
-            std::cout << "WARNING: Paths have " <<diff_states << " different state." << std::endl;
+            local_warn = true;
+            std::cout << "[WARNING]: Paths have " <<diff_states << " different state." << std::endl;
             std::cout << "\t" << "Exp: " << i << std::endl;
-            std::cout << "\t" << "N: " << config.n_samples_[i] << std::endl;
+            std::cout << "\t" << "N: " << config.n_samples_[i] << std::endl << std::endl;
         }
+
+        if (!local_warn)
+            std::cout << "[TEST OK]" << std::endl << std::endl;
     }
 
     if (warn)
