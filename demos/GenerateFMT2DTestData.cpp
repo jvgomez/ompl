@@ -49,6 +49,10 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
+bool heuristics = false;
+bool nearestK = true;
+bool cacheCC = true;
+
 void preSampleFree(const ob::SpaceInformationPtr si, const size_t n, std::vector<const ob::State*> &states)
 {
     size_t statesSampled = 0;
@@ -220,6 +224,10 @@ int main(int argc, char ** argv)
         Test2DDataGenerator<og::FMT> test_planner((path / "ppm/floor.ppm").string().c_str());
         test_planner.getPlanner()->as<og::FMT>()->setNumSamples(n_samples[i]);
         test_planner.setStateSamplerAllocator(pssa);
+
+        test_planner.getPlanner()->as<og::FMT>()->setNearestK(nearestK);
+        //test_planner.getPlanner()->as<og::FMT>()->setHeuristics(heuristics);
+        //test_planner.getPlanner()->as<og::FMT>()->setCacheCC(cacheCC);
 
         if (test_planner.plan(0,0, 1859, 1568, max_time)
             && test_planner.getSetup()->haveExactSolutionPath())
