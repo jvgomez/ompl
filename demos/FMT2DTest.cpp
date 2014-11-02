@@ -51,7 +51,7 @@ namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
 bool heuristics = false;
-bool nearestK = true;
+bool nearestK = false;
 bool cacheCC = true;
 
 struct Path2D
@@ -178,7 +178,7 @@ void loadData(const char *filename, std::vector<Path2D> &paths, Config &config)
         }
     }
     else
-        std::cout << "Error opening file " << "fmttest_paths.txt"<< "!" << std::endl;
+        std::cout << "Error opening file " << filename << "!" << std::endl;
 }
 
 std::size_t differentPaths(const std::vector<ob::State*> p1, const std::vector<ob::State*> p2)
