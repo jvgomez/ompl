@@ -49,8 +49,8 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
-bool heuristics = false;
-bool nearestK = true;
+bool heuristics = true;
+bool nearestK = false;
 bool cacheCC = true;
 
 void preSampleFree(const ob::SpaceInformationPtr si, const size_t n, std::vector<const ob::State*> &states)
@@ -209,7 +209,7 @@ int main(int argc, char ** argv)
         preSampleFree(aux.getSpaceInformation(), n_samples[exp-1], states);
     }
     PredefinedStateSamplerAllocator pssa(states);
-    pssa.saveSamples("fmttest_samples.txt");
+    pssa.saveSamples("fmttest_samples_r_h.txt");
 
     // Saving header of the results file.
     std::stringstream fmtss;
@@ -246,7 +246,7 @@ int main(int argc, char ** argv)
     }
 
     std::ofstream fmtssofs;
-    fmtssofs.open("fmttest_paths.txt", std::ofstream::trunc);
+    fmtssofs.open("fmttest_paths_r_h.txt", std::ofstream::trunc);
     fmtssofs << fmtss.rdbuf();
     fmtssofs.close();
 
