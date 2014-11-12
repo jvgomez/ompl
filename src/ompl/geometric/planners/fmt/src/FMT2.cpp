@@ -334,22 +334,22 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
         //    return base::PlannerStatus(false, false);
     } // While not at goal
 
-    if (plannerSuccess)
+    /*if (plannerSuccess)
     {
         // Return the path to z, since by definition of planner success, z is in the goal region
         lastGoalMotion_ = z;
         //bestCost_ = lastGoalMotion_->getCost();
 
-    }
+    }*/
     // No solution found, add more samples.
-    else if(!successfulExpansion)
+    if(!successfulExpansion)
     {
         //while (!ptc && !(plannerSuccess = goal->isSatisfied(z->getState())))
         //bool endLoop = false;
         //while (!ptc && !endLoop)
         while (!ptc && !successfulExpansion)
         {
-            Motion *nmotion;
+            //Motion *nmotion;
             // Find all leaf nodes.
             std::vector<Motion*> leaves;
             leaves.reserve(nn_->size());
@@ -397,10 +397,13 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
                     m->setCost(opt_->combineCosts(leaves[idx]->getCost(), incCost));
                     m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
                     m->setSetType(Motion::SET_OPEN);
-                    //Open_.insert(m);
-                    nmotion = m;
+                    //nmotion = m;
+                    //z = m;
                     nn_->add(m);
+                    saveNeighborhood(m);
                     updateNeighborhood(m, xNear, NNr_);
+
+                    Open_.insert(m);
                     openUpdated = true;
 
                     std::cout << "----------------------------------" << std::endl << "New sample added: ";
@@ -417,15 +420,21 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
             //if (!Open_.empty())
             if(openUpdated)
             {
-                //z = Open_.top()->data;
-                z = nmotion;
+                z = Open_.top()->data;
+                //z = m;
                 std::cout << "Expanding ";
+
                 si_->printState(z->getState());
                 // Continue FMT with the new samples added.
-                while (!ptc && //successfulExpansion &&
+                while (!ptc &&
                        !(plannerSuccess = goal->isSatisfied(z->getState())))
                 {
+                    std::cout << "Iterating" << std::endl;
+                    si_->printState(z->getState());
                     successfulExpansion = expandTreeFromNode(z);
+
+                    if (!successfulExpansion)
+                        break;
                 } // While not at goal
             }
         }
@@ -433,6 +442,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
 
     if (plannerSuccess)
     {
+        lastGoalMotion_ = z;
         OMPL_DEBUG("Final path cost: %f", lastGoalMotion_->getCost().value());
         traceSolutionPathThroughTree(lastGoalMotion_);
         return base::PlannerStatus(true, false);
@@ -472,6 +482,7 @@ bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
     std::vector<Motion*> xNear;
     const std::vector<Motion*> &zNeighborhood = neighborhoods_[z];
     const unsigned int zNeighborhoodSize = zNeighborhood.size();
+                        std::cout << " ==== " << zNeighborhoodSize << std::endl;
     xNear.reserve(zNeighborhoodSize);
 
     for (unsigned int i = 0; i < zNeighborhoodSize; ++i)
@@ -606,6 +617,7 @@ void ompl::geometric::FMT2::findLeafNodes(std::vector<Motion*> & leaves)
 }
 
 // TODO: this could be better implemented by returning something in saveNeighborhood()
+// TODO: note that the new neighbours added are not sorted.
 void ompl::geometric::FMT2::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh, const double r)
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
