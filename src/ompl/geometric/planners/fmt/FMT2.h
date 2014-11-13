@@ -470,6 +470,8 @@ namespace ompl
 
             /** \brief Goal state caching to accelerate cost to go heuristic computation */
             base::State* goalState_;
+
+            bool progressiveFMT_;
         };
     }
 }

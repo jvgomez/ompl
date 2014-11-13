@@ -61,6 +61,7 @@ ompl::geometric::FMT2::FMT2(const base::SpaceInformationPtr &si)
     , cacheCC_(true)
     , heuristics_(false)
     , radiusMultiplier_(1.1)
+    , progressiveFMT_(true)
 {
     // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
     freeSpaceVolume_ = si_->getStateSpace()->getMeasure();
@@ -326,48 +327,30 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
     Motion *z = initMotion; // z <-- xinit
     saveNeighborhood(z);
 
-    while (!ptc && !(plannerSuccess = goal->isSatisfied(z->getState())))
+    while (!ptc)//&& !(plannerSuccess = goal->isSatisfied(z->getState())))
     {
-        successfulExpansion = expandTreeFromNode(z);
-        if (!successfulExpansion)
+        if ((plannerSuccess = goal->isSatisfied(z->getState())))
             break;
-        //    return base::PlannerStatus(false, false);
-    } // While not at goal
 
-    /*if (plannerSuccess)
-    {
-        // Return the path to z, since by definition of planner success, z is in the goal region
-        lastGoalMotion_ = z;
-        //bestCost_ = lastGoalMotion_->getCost();
+        successfulExpansion = expandTreeFromNode(z);
 
-    }*/
-    // No solution found, add more samples.
-    if(!successfulExpansion)
-    {
-        //while (!ptc && !(plannerSuccess = goal->isSatisfied(z->getState())))
-        //bool endLoop = false;
-        //while (!ptc && !endLoop)
-        while (!ptc && !successfulExpansion)
+        if (!progressiveFMT_ && !successfulExpansion)
+            break;
+        else if (progressiveFMT_ && !successfulExpansion)
         {
-            //Motion *nmotion;
             // Find all leaf nodes.
             std::vector<Motion*> leaves;
             leaves.reserve(nn_->size());
             findLeafNodes(leaves);
 
-            //for(std::size_t i = 0; i < leaves.size(); ++i)
-            //    si_->printState(leaves[i]->getState());
-
             // TODO: sort so that leaf nodes with lower cost are sampled first.
 
             // Sample around leaf nodes and connect to them only if there is
             // a possibility to connect to unvisited nodes.
-            bool openUpdated = false;
             Motion *m = new Motion(si_);
 
-            //for(std::size_t i = 0; !continueFMT && !ptc; ++i)
             std::size_t it = 0; // Circular iterator
-            while (!ptc && !openUpdated)
+            while (!ptc && Open_.empty())
             {
                 const std::size_t idx = it%leaves.size();
                 ++it;
@@ -397,40 +380,90 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
                     m->setCost(opt_->combineCosts(leaves[idx]->getCost(), incCost));
                     m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
                     m->setSetType(Motion::SET_OPEN);
-                    //nmotion = m;
-                    //z = m;
+
                     nn_->add(m);
                     saveNeighborhood(m);
                     updateNeighborhood(m, xNear, NNr_);
-
                     Open_.insert(m);
-                    openUpdated = true;
-
-                    std::cout << "----------------------------------" << std::endl << "New sample added: ";
-                    si_->printState(m->getState());
                     m = new Motion(si_);
                 }
             }
 
-            //si_->freeState(m->getState());
-            //delete m;
+            si_->freeState(m->getState());
+            delete m;
 
-            std::cout << "Tree recovered" << std::endl;
-            //endLoop = true;
-            //if (!Open_.empty())
-            if(openUpdated)
-            {
+            // Continue FMT with the new samples added.
+            if (!Open_.empty())
                 z = Open_.top()->data;
-                //z = m;
-                std::cout << "Expanding ";
+        }
+    } // While not at goal
+/*
+    // No solution found, add more samples.
+    if(!successfulExpansion)
+    {
+        while (!ptc && !successfulExpansion)
+        {
+            // Find all leaf nodes.
+            std::vector<Motion*> leaves;
+            leaves.reserve(nn_->size());
+            findLeafNodes(leaves);
 
-                si_->printState(z->getState());
+            // TODO: sort so that leaf nodes with lower cost are sampled first.
+
+            // Sample around leaf nodes and connect to them only if there is
+            // a possibility to connect to unvisited nodes.
+            Motion *m = new Motion(si_);
+
+            std::size_t it = 0; // Circular iterator
+            while (!ptc && Open_.empty())
+            {
+                const std::size_t idx = it%leaves.size();
+                ++it;
+                // TODO: r/2 is not the best to use since in some cases the connection
+                // to parent will be longer than r
+                sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
+
+                // Does the new sample connect to a unvisited node?
+                std::vector<Motion*> nbh, xNear;
+                nn_->nearestR(m, NNr_, nbh);
+                xNear.reserve(nbh.size());
+                for(std::size_t j = 0; j < nbh.size(); ++j)
+                {
+                    if(nbh[j]->getSetType() == Motion::SET_UNVISITED)
+                        xNear.push_back(nbh[j]);
+                }
+
+                // Connecting the new node to its parent.
+                // TODO: this connection is not optimal. Since we are using nearestR
+                // already, try to connect to the best neighbour in the tree. WARNING!!
+                // the SampleUniformNear can give samples further than r to the current node.
+                if(xNear.size() >0 && si_->checkMotion(leaves[idx]->getState(), m->getState()))
+                {
+                    m->setParent(leaves[idx]);
+                    leaves[idx]->children.push_back(m);
+                    const base::Cost incCost = opt_->motionCost(leaves[idx]->getState(), m->getState());
+                    m->setCost(opt_->combineCosts(leaves[idx]->getCost(), incCost));
+                    m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
+                    m->setSetType(Motion::SET_OPEN);
+
+                    nn_->add(m);
+                    saveNeighborhood(m);
+                    updateNeighborhood(m, xNear, NNr_);
+                    Open_.insert(m);
+                    m = new Motion(si_);
+                }
+            }
+
+            si_->freeState(m->getState());
+            delete m;
+
+            if (!Open_.empty())
+            {
                 // Continue FMT with the new samples added.
+                z = Open_.top()->data;
                 while (!ptc &&
                        !(plannerSuccess = goal->isSatisfied(z->getState())))
                 {
-                    std::cout << "Iterating" << std::endl;
-                    si_->printState(z->getState());
                     successfulExpansion = expandTreeFromNode(z);
 
                     if (!successfulExpansion)
@@ -438,7 +471,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
                 } // While not at goal
             }
         }
-    }
+    }*/
 
     if (plannerSuccess)
     {
@@ -482,7 +515,6 @@ bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
     std::vector<Motion*> xNear;
     const std::vector<Motion*> &zNeighborhood = neighborhoods_[z];
     const unsigned int zNeighborhoodSize = zNeighborhood.size();
-                        std::cout << " ==== " << zNeighborhoodSize << std::endl;
     xNear.reserve(zNeighborhoodSize);
 
     for (unsigned int i = 0; i < zNeighborhoodSize; ++i)
