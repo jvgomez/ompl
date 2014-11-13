@@ -403,6 +403,9 @@ namespace ompl
             // TODO: doc this
             void updateNeighborhood(Motion *m, const std::vector<Motion *> nbh, const double r);
 
+            // TODO: doc this
+            Motion* getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin);
+
             /** \brief A binary heap for storing explored motions in
                 cost-to-come sorted order */
             typedef ompl::BinaryHeap<Motion*, MotionCompare> MotionBinHeap;

@@ -349,52 +349,67 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
             // a possibility to connect to unvisited nodes.
             Motion *m = new Motion(si_);
 
-            std::size_t it = 0; // Circular iterator
+            //std::size_t it = 0; // Circular iterator
             while (!ptc && Open_.empty())
             {
-                const std::size_t idx = it%leaves.size();
-                ++it;
-                // TODO: r/2 is not the best to use since in some cases the connection
+                //const std::size_t idx = it%leaves.size();
+                //++it;
+                // TODO: r/2 is probably not the best to use since in some cases the connection
                 // to parent will be longer than r
-                sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
+                //sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
+                sampler_->sampleUniform(m->getState());
 
-                // Does the new sample connect to a unvisited node?
-                std::vector<Motion*> nbh, xNear;
+                // Does the new sample has a unvisited node as neighbor?
+                std::vector<Motion*> nbh;//, xNear;
                 nn_->nearestR(m, NNr_, nbh);
-                xNear.reserve(nbh.size());
+                //xNear.reserve(nbh.size());
+                bool connects = false;
                 for(std::size_t j = 0; j < nbh.size(); ++j)
                 {
                     if(nbh[j]->getSetType() == Motion::SET_UNVISITED)
-                        xNear.push_back(nbh[j]);
+                    {
+                        connects = true;
+                        break;
+                        //xNear.push_back(nbh[j]);
+                    }
+                }
+
+                // Then, get the best parent in the tree
+                base::Cost cMin(std::numeric_limits<double>::infinity());
+                std::vector<Motion*> yNear;
+                Motion *yMin = NULL;
+                if (connects)
+                {
+                    yNear.reserve(nbh.size());
+                    for(std::size_t j = 0; j < nbh.size(); ++j)
+                    {
+                        if(nbh[j]->getSetType() == Motion::SET_CLOSED)
+                            yNear.push_back(nbh[j]);
+                    }
+                    if (yNear.size() > 0)
+                        yMin = getBestParent(m, yNear, cMin);
                 }
 
                 // Connecting the new node to its parent.
                 // TODO: this connection is not optimal. Since we are using nearestR
                 // already, try to connect to the best neighbour in the tree. WARNING!!
                 // the SampleUniformNear can give samples further than r to the current node.
-                if(xNear.size() >0 && si_->checkMotion(leaves[idx]->getState(), m->getState()))
+                if(yMin != NULL && si_->checkMotion(yMin->getState(), m->getState()))
                 {
-                    m->setParent(leaves[idx]);
-                    leaves[idx]->children.push_back(m);
-                    const base::Cost incCost = opt_->motionCost(leaves[idx]->getState(), m->getState());
-                    m->setCost(opt_->combineCosts(leaves[idx]->getCost(), incCost));
+                    m->setParent(yMin);
+                    yMin->children.push_back(m);
+                    const base::Cost incCost = opt_->motionCost(yMin->getState(), m->getState());
+                    m->setCost(opt_->combineCosts(yMin->getCost(), incCost));
                     m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
                     m->setSetType(Motion::SET_OPEN);
 
                     nn_->add(m);
                     saveNeighborhood(m);
-                    updateNeighborhood(m, xNear, NNr_);
+                    updateNeighborhood(m, nbh, NNr_);
                     Open_.insert(m);
-                    m = new Motion(si_);
+                    z = m;
                 }
             }
-
-            si_->freeState(m->getState());
-            delete m;
-
-            // Continue FMT with the new samples added.
-            if (!Open_.empty())
-                z = Open_.top()->data;
         }
     } // While not at goal
 
@@ -484,21 +499,8 @@ bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
         }
 
         // Find the lowest cost-to-come connection from Open to x
-        Motion *yMin = NULL;
         base::Cost cMin(std::numeric_limits<double>::infinity());
-        const unsigned int yNearSize = yNear.size();
-        for (unsigned int j = 0; j < yNearSize; ++j)
-        {
-            const base::State *yState = yNear[j]->getState();
-            const base::Cost dist = opt_->motionCost(yState, x->getState());
-            const base::Cost cNew = opt_->combineCosts(yNear[j]->getCost(), dist);
-
-            if (opt_->isCostBetterThan(cNew, cMin))
-            {
-                yMin = yNear[j];
-                cMin = cNew;
-            }
-        }
+        Motion *yMin = getBestParent(x, yNear, cMin);
         yNear.clear();
 
         // If an optimal connection from Open to x was found
@@ -556,11 +558,29 @@ bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
 
 std::string ompl::geometric::FMT2::getCollisionCheckCount() const
 {
-  return boost::lexical_cast<std::string>(collisionChecks_);
+    return boost::lexical_cast<std::string>(collisionChecks_);
 }
 
+ompl::geometric::FMT2::Motion* ompl::geometric::FMT2::getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin)
+{
+    Motion *min = NULL;
+    const unsigned int neighborsSize = neighbors.size();
+    for (unsigned int j = 0; j < neighborsSize; ++j)
+    {
+        const base::State *s = neighbors[j]->getState();
+        const base::Cost dist = opt_->motionCost(s, m->getState());
+        const base::Cost cNew = opt_->combineCosts(neighbors[j]->getCost(), dist);
 
-void ompl::geometric::FMT2::findLeafNodes(std::vector<Motion*> & leaves)
+        if (opt_->isCostBetterThan(cNew, cMin))
+        {
+            min = neighbors[j];
+            cMin = cNew;
+        }
+    }
+    return min;
+}
+
+void ompl::geometric::FMT2::findLeafNodes(std::vector<Motion*> &leaves)
 {
     // TODO: can be optimized by adding a flag to the motion.
     std::vector<Motion*> tree;
@@ -598,6 +618,7 @@ void ompl::geometric::FMT2::updateNeighborhood(Motion *m, const std::vector<Moti
             }
         }
         // Neighborhood already saved, so we have to add m to it.
+        // TODO : it should be included sorted!
         else
         {
             neighborhoods_[nbh[i]].push_back(m);
