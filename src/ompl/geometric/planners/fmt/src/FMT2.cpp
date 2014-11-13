@@ -327,7 +327,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
     Motion *z = initMotion; // z <-- xinit
     saveNeighborhood(z);
 
-    while (!ptc)//&& !(plannerSuccess = goal->isSatisfied(z->getState())))
+    while (!ptc)
     {
         if ((plannerSuccess = goal->isSatisfied(z->getState())))
             break;
@@ -397,81 +397,6 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
                 z = Open_.top()->data;
         }
     } // While not at goal
-/*
-    // No solution found, add more samples.
-    if(!successfulExpansion)
-    {
-        while (!ptc && !successfulExpansion)
-        {
-            // Find all leaf nodes.
-            std::vector<Motion*> leaves;
-            leaves.reserve(nn_->size());
-            findLeafNodes(leaves);
-
-            // TODO: sort so that leaf nodes with lower cost are sampled first.
-
-            // Sample around leaf nodes and connect to them only if there is
-            // a possibility to connect to unvisited nodes.
-            Motion *m = new Motion(si_);
-
-            std::size_t it = 0; // Circular iterator
-            while (!ptc && Open_.empty())
-            {
-                const std::size_t idx = it%leaves.size();
-                ++it;
-                // TODO: r/2 is not the best to use since in some cases the connection
-                // to parent will be longer than r
-                sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
-
-                // Does the new sample connect to a unvisited node?
-                std::vector<Motion*> nbh, xNear;
-                nn_->nearestR(m, NNr_, nbh);
-                xNear.reserve(nbh.size());
-                for(std::size_t j = 0; j < nbh.size(); ++j)
-                {
-                    if(nbh[j]->getSetType() == Motion::SET_UNVISITED)
-                        xNear.push_back(nbh[j]);
-                }
-
-                // Connecting the new node to its parent.
-                // TODO: this connection is not optimal. Since we are using nearestR
-                // already, try to connect to the best neighbour in the tree. WARNING!!
-                // the SampleUniformNear can give samples further than r to the current node.
-                if(xNear.size() >0 && si_->checkMotion(leaves[idx]->getState(), m->getState()))
-                {
-                    m->setParent(leaves[idx]);
-                    leaves[idx]->children.push_back(m);
-                    const base::Cost incCost = opt_->motionCost(leaves[idx]->getState(), m->getState());
-                    m->setCost(opt_->combineCosts(leaves[idx]->getCost(), incCost));
-                    m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
-                    m->setSetType(Motion::SET_OPEN);
-
-                    nn_->add(m);
-                    saveNeighborhood(m);
-                    updateNeighborhood(m, xNear, NNr_);
-                    Open_.insert(m);
-                    m = new Motion(si_);
-                }
-            }
-
-            si_->freeState(m->getState());
-            delete m;
-
-            if (!Open_.empty())
-            {
-                // Continue FMT with the new samples added.
-                z = Open_.top()->data;
-                while (!ptc &&
-                       !(plannerSuccess = goal->isSatisfied(z->getState())))
-                {
-                    successfulExpansion = expandTreeFromNode(z);
-
-                    if (!successfulExpansion)
-                        break;
-                } // While not at goal
-            }
-        }
-    }*/
 
     if (plannerSuccess)
     {
