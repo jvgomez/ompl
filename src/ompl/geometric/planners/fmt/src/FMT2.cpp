@@ -48,13 +48,13 @@
 #include <ompl/datastructures/BinaryHeap.h>
 #include <ompl/tools/config/SelfConfig.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
-#include <ompl/geometric/planners/fmt/FMT2.h>
+#include <ompl/geometric/planners/fmt/FMT3.h>
 
 #include <fstream>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 
-ompl::geometric::FMT2::FMT2(const base::SpaceInformationPtr &si)
-    : base::Planner(si, "FMT2")
+ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
+    : base::Planner(si, "FMT3")
     , numSamples_(1000)
     , collisionChecks_(0)
     , nearestK_(false)
@@ -70,19 +70,19 @@ ompl::geometric::FMT2::FMT2(const base::SpaceInformationPtr &si)
     specs_.approximateSolutions = false;
     specs_.directed = false;
 
-    ompl::base::Planner::declareParam<unsigned int>("num_samples", this, &FMT2::setNumSamples, &FMT2::getNumSamples, "10:10:1000000");
-    ompl::base::Planner::declareParam<double>("radius_multiplier", this, &FMT2::setRadiusMultiplier, &FMT2::getRadiusMultiplier, "0.1:0.05:50.");
-    ompl::base::Planner::declareParam<bool>("nearest_k", this, &FMT2::setNearestK, &FMT2::getNearestK, "0,1");
-    ompl::base::Planner::declareParam<bool>("cache_cc", this, &FMT2::setCacheCC, &FMT2::getCacheCC, "0,1");
-    ompl::base::Planner::declareParam<bool>("heuristics", this, &FMT2::setHeuristics, &FMT2::getHeuristics, "0,1");
+    ompl::base::Planner::declareParam<unsigned int>("num_samples", this, &FMT3::setNumSamples, &FMT3::getNumSamples, "10:10:1000000");
+    ompl::base::Planner::declareParam<double>("radius_multiplier", this, &FMT3::setRadiusMultiplier, &FMT3::getRadiusMultiplier, "0.1:0.05:50.");
+    ompl::base::Planner::declareParam<bool>("nearest_k", this, &FMT3::setNearestK, &FMT3::getNearestK, "0,1");
+    ompl::base::Planner::declareParam<bool>("cache_cc", this, &FMT3::setCacheCC, &FMT3::getCacheCC, "0,1");
+    ompl::base::Planner::declareParam<bool>("heuristics", this, &FMT3::setHeuristics, &FMT3::getHeuristics, "0,1");
 }
 
-ompl::geometric::FMT2::~FMT2()
+ompl::geometric::FMT3::~FMT3()
 {
     freeMemory();
 }
 
-void ompl::geometric::FMT2::setup()
+void ompl::geometric::FMT3::setup()
 {
     Planner::setup();
 
@@ -101,10 +101,10 @@ void ompl::geometric::FMT2::setup()
 
     if (!nn_)
         nn_.reset(tools::SelfConfig::getDefaultNearestNeighbors<Motion*>(si_->getStateSpace()));
-    nn_->setDistanceFunction(boost::bind(&FMT2::distanceFunction, this, _1, _2));
+    nn_->setDistanceFunction(boost::bind(&FMT3::distanceFunction, this, _1, _2));
 }
 
-void ompl::geometric::FMT2::freeMemory()
+void ompl::geometric::FMT3::freeMemory()
 {
     if (nn_)
     {
@@ -119,7 +119,7 @@ void ompl::geometric::FMT2::freeMemory()
     }
 }
 
-void ompl::geometric::FMT2::clear()
+void ompl::geometric::FMT3::clear()
 {
     Planner::clear();
     lastGoalMotion_ = NULL;
@@ -133,7 +133,7 @@ void ompl::geometric::FMT2::clear()
     collisionChecks_ = 0;
 }
 
-void ompl::geometric::FMT2::getPlannerData(base::PlannerData &data) const
+void ompl::geometric::FMT3::getPlannerData(base::PlannerData &data) const
 {
     Planner::getPlannerData(data);
     std::vector<Motion*> motions;
@@ -153,7 +153,7 @@ void ompl::geometric::FMT2::getPlannerData(base::PlannerData &data) const
     }
 }
 
-void ompl::geometric::FMT2::saveNeighborhood(Motion *m)
+void ompl::geometric::FMT3::saveNeighborhood(Motion *m)
 {
     // Check to see if neighborhood has not been saved yet
     if (neighborhoods_.find(m) == neighborhoods_.end())
@@ -178,7 +178,7 @@ void ompl::geometric::FMT2::saveNeighborhood(Motion *m)
 }
 
 // Calculate the unit ball volume for a given dimension
-double ompl::geometric::FMT2::calculateUnitBallVolume(const unsigned int dimension) const
+double ompl::geometric::FMT3::calculateUnitBallVolume(const unsigned int dimension) const
 {
     if (dimension == 0)
         return 1.0;
@@ -188,7 +188,7 @@ double ompl::geometric::FMT2::calculateUnitBallVolume(const unsigned int dimensi
             * calculateUnitBallVolume(dimension - 2);
 }
 
-double ompl::geometric::FMT2::calculateRadius(const unsigned int dimension, const unsigned int n) const
+double ompl::geometric::FMT3::calculateRadius(const unsigned int dimension, const unsigned int n) const
 {
     double a = 1.0 / (double)dimension;
     double unitBallVolume = calculateUnitBallVolume(dimension);
@@ -196,7 +196,7 @@ double ompl::geometric::FMT2::calculateRadius(const unsigned int dimension, cons
     return radiusMultiplier_ * 2.0 * std::pow(a, a) * std::pow(freeSpaceVolume_ / unitBallVolume, a) * std::pow(log((double)n) / (double)n, a);
 }
 
-void ompl::geometric::FMT2::sampleFree(const base::PlannerTerminationCondition &ptc)
+void ompl::geometric::FMT3::sampleFree(const base::PlannerTerminationCondition &ptc)
 {
     unsigned int nodeCount = 0;
     unsigned int sampleAttempts = 0;
@@ -224,7 +224,7 @@ void ompl::geometric::FMT2::sampleFree(const base::PlannerTerminationCondition &
     freeSpaceVolume_ = boost::math::binomial_distribution<>::find_upper_bound_on_p(sampleAttempts, nodeCount, 0.05) * si_->getStateSpace()->getMeasure();
 }
 
-void ompl::geometric::FMT2::assureGoalIsSampled(const ompl::base::GoalSampleableRegion *goal)
+void ompl::geometric::FMT3::assureGoalIsSampled(const ompl::base::GoalSampleableRegion *goal)
 {
     // Ensure that there is at least one node near each goal
     while (const base::State *goalState = pis_.nextGoal())
@@ -259,7 +259,7 @@ void ompl::geometric::FMT2::assureGoalIsSampled(const ompl::base::GoalSampleable
     } // For each goal
 }
 
-ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTerminationCondition &ptc)
+ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTerminationCondition &ptc)
 {
     if (lastGoalMotion_) {
         OMPL_INFORM("solve() called before clear(); returning previous solution");
@@ -338,31 +338,26 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
             break;
         else if (progressiveFMT_ && !successfulExpansion)
         {
-            // Find all leaf nodes.
-            std::vector<Motion*> leaves;
-            leaves.reserve(nn_->size());
-            findLeafNodes(leaves);
-
-            // TODO: sort so that leaf nodes with lower cost are sampled first.
-
-            // Sample around leaf nodes and connect to them only if there is
+            // Sample and connect samples to tree only if there is
             // a possibility to connect to unvisited nodes.
-            Motion *m = new Motion(si_);
+            std::vector<Motion*>       nbh;
+            std::vector<base::Cost>    costs;
+            std::vector<base::Cost>    incCosts;
+            std::vector<std::size_t>   sortedCostIndices;
 
-            //std::size_t it = 0; // Circular iterator
+            // our functor for sorting nearest neighbors
+            CostIndexCompare compareFn(costs, *opt_);
+
+            Motion *m = new Motion(si_);
             while (!ptc && Open_.empty())
             {
-                //const std::size_t idx = it%leaves.size();
-                //++it;
-                // TODO: r/2 is probably not the best to use since in some cases the connection
-                // to parent will be longer than r
-                //sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
                 sampler_->sampleUniform(m->getState());
+                // TODO: benchmark with and without isValid.
+                if(!si_->isValid(m->getState()))
+                    continue;
 
                 // Does the new sample has a unvisited node as neighbor?
-                std::vector<Motion*> nbh;//, xNear;
                 nn_->nearestR(m, NNr_, nbh);
-                //xNear.reserve(nbh.size());
                 bool connects = false;
                 for(std::size_t j = 0; j < nbh.size(); ++j)
                 {
@@ -370,47 +365,77 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
                     {
                         connects = true;
                         break;
-                        //xNear.push_back(nbh[j]);
                     }
                 }
 
-                // Then, get the best parent in the tree
-                base::Cost cMin(std::numeric_limits<double>::infinity());
                 std::vector<Motion*> yNear;
-                Motion *yMin = NULL;
                 if (connects)
                 {
+                    // Get neighbours in the tree.
                     yNear.reserve(nbh.size());
                     for(std::size_t j = 0; j < nbh.size(); ++j)
                     {
                         if(nbh[j]->getSetType() == Motion::SET_CLOSED)
                             yNear.push_back(nbh[j]);
                     }
-                    if (yNear.size() > 0)
-                        yMin = getBestParent(m, yNear, cMin);
-                }
 
-                // Connecting the new node to its parent.
-                // TODO: this connection is not optimal. Since we are using nearestR
-                // already, try to connect to the best neighbour in the tree. WARNING!!
-                // the SampleUniformNear can give samples further than r to the current node.
-                if(yMin != NULL && si_->checkMotion(yMin->getState(), m->getState()))
-                {
-                    m->setParent(yMin);
-                    yMin->children.push_back(m);
-                    const base::Cost incCost = opt_->motionCost(yMin->getState(), m->getState());
-                    m->setCost(opt_->combineCosts(yMin->getCost(), incCost));
-                    m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
-                    m->setSetType(Motion::SET_OPEN);
+                    // cache for distance computations
+                    //
+                    // Our cost caches only increase in size, so they're only
+                    // resized if they can't fit the current neighborhood
+                    if (costs.size() < yNear.size())
+                    {
+                        costs.resize(yNear.size());
+                        incCosts.resize(yNear.size());
+                        sortedCostIndices.resize(yNear.size());
+                    }
 
-                    nn_->add(m);
-                    saveNeighborhood(m);
-                    updateNeighborhood(m, nbh, NNr_);
-                    Open_.insert(m);
-                    z = m;
-                }
-            }
-        }
+                    // Finding the nearest neighbor to connect to
+                    // By default, neighborhood states are sorted by cost, and collision checking
+                    // is performed in increasing order of cost
+                    //
+                    // calculate all costs and distances
+                    for (std::size_t i = 0 ; i < yNear.size(); ++i)
+                    {
+                        incCosts[i] = opt_->motionCost(yNear[i]->getState(), m->getState());
+                        costs[i] = opt_->combineCosts(yNear[i]->getCost(), incCosts[i]);
+                    }
+
+                    // sort the nodes
+                    //
+                    // we're using index-value pairs so that we can get at
+                    // original, unsorted indices
+                    for (std::size_t i = 0; i < yNear.size(); ++i)
+                        sortedCostIndices[i] = i;
+                    std::sort(sortedCostIndices.begin(), sortedCostIndices.begin() + yNear.size(),
+                              compareFn);
+
+                    // collision check until a valid motion is found
+                   for (std::vector<std::size_t>::const_iterator i = sortedCostIndices.begin();
+                        i != sortedCostIndices.begin() + yNear.size();
+                        ++i)
+                   {
+                       if(si_->checkMotion(yNear[*i]->getState(), m->getState()))
+                       {
+                           m->setParent(yNear[*i]);
+                           yNear[*i]->children.push_back(m);
+                           const base::Cost incCost = opt_->motionCost(yNear[*i]->getState(), m->getState());
+                           m->setCost(opt_->combineCosts(yNear[*i]->getCost(), incCost));
+                           m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), goalState_));
+                           m->setSetType(Motion::SET_OPEN);
+
+                           nn_->add(m);
+                           saveNeighborhood(m);
+                           updateNeighborhood(m, nbh, NNr_);
+                           Open_.insert(m);
+                           z = m;
+                           break;
+                       }
+                   }
+
+                } // if connects
+            } // while (!ptc && Open_.empty())
+        } // else if (progressiveFMT_ && !successfulExpansion)
     } // While not at goal
 
     if (plannerSuccess)
@@ -428,7 +453,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTermin
     }
 }
 
-void ompl::geometric::FMT2::traceSolutionPathThroughTree(Motion *goalMotion)
+void ompl::geometric::FMT3::traceSolutionPathThroughTree(Motion *goalMotion)
 {
     std::vector<Motion*> mpath;
     Motion *solution = goalMotion;
@@ -448,7 +473,7 @@ void ompl::geometric::FMT2::traceSolutionPathThroughTree(Motion *goalMotion)
     pdef_->addSolutionPath(base::PathPtr(path), false, -1.0, getName());
 }
 
-bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
+bool ompl::geometric::FMT3::expandTreeFromNode(Motion *&z)
 {
     // Find all nodes that are near z, and also in set Unvisited
 
@@ -513,7 +538,7 @@ bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
                 {
                     collision_free = si_->checkMotion(yMin->getState(), x->getState());
                     ++collisionChecks_;
-                    // Due to FMT2* design, it is only necessary to save unsuccesful
+                    // Due to FMT3* design, it is only necessary to save unsuccesful
                     // connection attemps because of collision
                     if (!collision_free)
                         yMin->addCC(x);
@@ -556,12 +581,12 @@ bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
     return true;
 }
 
-std::string ompl::geometric::FMT2::getCollisionCheckCount() const
+std::string ompl::geometric::FMT3::getCollisionCheckCount() const
 {
     return boost::lexical_cast<std::string>(collisionChecks_);
 }
 
-ompl::geometric::FMT2::Motion* ompl::geometric::FMT2::getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin)
+ompl::geometric::FMT3::Motion* ompl::geometric::FMT3::getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin)
 {
     Motion *min = NULL;
     const unsigned int neighborsSize = neighbors.size();
@@ -580,9 +605,10 @@ ompl::geometric::FMT2::Motion* ompl::geometric::FMT2::getBestParent(Motion *m, s
     return min;
 }
 
-void ompl::geometric::FMT2::findLeafNodes(std::vector<Motion*> &leaves)
+void ompl::geometric::FMT3::findLeafNodes(std::vector<Motion*> &leaves)
 {
     // TODO: can be optimized by adding a flag to the motion.
+    // TODO: it may also be faster to check by childrens (tree traversal) instead of listing nodes.
     std::vector<Motion*> tree;
     nn_->list(tree);
 
@@ -595,7 +621,7 @@ void ompl::geometric::FMT2::findLeafNodes(std::vector<Motion*> &leaves)
 
 // TODO: this could be better implemented by returning something in saveNeighborhood()
 // TODO: note that the new neighbours added are not sorted.
-void ompl::geometric::FMT2::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh, const double r)
+void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh, const double r)
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
     {
@@ -627,7 +653,7 @@ void ompl::geometric::FMT2::updateNeighborhood(Motion *m, const std::vector<Moti
 }
 
 
-void ompl::geometric::FMT2::saveTree(const std::string &filename)
+void ompl::geometric::FMT3::saveTree(const std::string &filename)
 {
     std::ofstream ofs;
     ofs.open(filename.c_str(), std::ofstream::trunc);

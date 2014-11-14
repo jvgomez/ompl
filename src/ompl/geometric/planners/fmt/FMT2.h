@@ -39,8 +39,8 @@
 /* Acknowledgements for insightful comments: Oren Salzman (Tel Aviv University),
  *                                           Joseph Starek (Stanford) */
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_FMT2_
-#define OMPL_GEOMETRIC_PLANNERS_FMT2_
+#ifndef OMPL_GEOMETRIC_PLANNERS_FMT3_
+#define OMPL_GEOMETRIC_PLANNERS_FMT3_
 
 #include <ompl/geometric/planners/PlannerIncludes.h>
 #include <ompl/base/goals/GoalSampleableRegion.h>
@@ -57,13 +57,13 @@ namespace ompl
     {
 
         /**
-           @anchor gFMT2
+           @anchor gFMT3
            @par Short description
-           \ref gFMT2 "FMT2*" is an asymptotically-optimal sampling-based motion
+           \ref gFMT3 "FMT3*" is an asymptotically-optimal sampling-based motion
             planning algorithm, which is guaranteed to converge to a shortest
             path solution. The algorithm is specifically aimed at solving complex
             motion planning problems in high-dimensional configuration spaces.
-            The \ref gFMT2 "FMT2*" algorithm essentially performs a lazy dynamic
+            The \ref gFMT3 "FMT3*" algorithm essentially performs a lazy dynamic
             programming recursion on a set of probabilistically-drawn samples to
             grow a tree of paths, which moves steadily outward in cost-to-come space.
            @par External documentation
@@ -75,13 +75,13 @@ namespace ompl
         */
         /** @brief Asymptotically Optimal Fast Marching Tree algorithm developed
             by L. Janson and M. Pavone. */
-        class FMT2 : public ompl::base::Planner
+        class FMT3 : public ompl::base::Planner
         {
         public:
 
-            FMT2(const base::SpaceInformationPtr &si);
+            FMT3(const base::SpaceInformationPtr &si);
 
-            virtual ~FMT2();
+            virtual ~FMT3();
 
             virtual void setup();
 
@@ -109,7 +109,7 @@ namespace ompl
 
             std::string getCollisionCheckCount() const;
 
-            /** \brief If nearestK is true, FMT2 will be run using the Knearest strategy */
+            /** \brief If nearestK is true, FMT3 will be run using the Knearest strategy */
             void setNearestK(bool nearestK)
             {
                 nearestK_ = nearestK;
@@ -122,7 +122,7 @@ namespace ompl
             }
 
             /** \brief The planner searches for neighbors of a node within a
-                cost r, where r is the value described for FMT2* in Section 4
+                cost r, where r is the value described for FMT3* in Section 4
                 of [L. Janson, A. Clark, and M. Pavone, "Fast Marching Trees: a Fast
                 Marching Sampling-Based Method for Optimal Motion Planning in
                 Many Dimensions," International Symposium on
@@ -196,7 +196,7 @@ namespace ompl
             {
                 public:
 
-                    /** \brief The FMT2* planner begins with all nodes included in
+                    /** \brief The FMT3* planner begins with all nodes included in
                         set Unvisited "Waiting for optimal connection". As nodes are
                         connected to the tree, they are transferred into set Open
                         "Horizon of explored tree." Once a node in Open is no longer
@@ -360,7 +360,7 @@ namespace ompl
 
             /** \brief For each goal region, check to see if any of the sampled
                 states fall within that region. If not, add a goal state from
-                that region directly into the set of vertices. In this way, FMT2
+                that region directly into the set of vertices. In this way, FMT3
                 is able to find a solution, if one exists. If no sampled nodes
                 are within a goal region, there would be no way for the
                 algorithm to successfully find a path to that region */
@@ -389,7 +389,7 @@ namespace ompl
              */
             void traceSolutionPathThroughTree(Motion *goalMotion);
 
-            /** \brief Complete one iteration of the main loop of the FMT2* algorithm:
+            /** \brief Complete one iteration of the main loop of the FMT3* algorithm:
                 Find K nearest nodes in set Unvisited (or within a radius r) of the node z.
                 Attempt to connect them to their optimal cost-to-come parent
                 in set Open. Remove all newly connected nodes fromUnvisited and insert
@@ -446,7 +446,7 @@ namespace ompl
             double freeSpaceVolume_;
 
             /** \brief This planner uses a nearest neighbor search radius
-                proportional to the lower bound for optimality derived for FMT2*
+                proportional to the lower bound for optimality derived for FMT3*
                 in Section 4 of [L. Janson, A. Clark, and M. Pavone, "Fast
                 Marching Trees: a Fast Marching Sampling-Based Method for
                 Optimal Motion Planning in Many Dimensions," International
@@ -475,9 +475,24 @@ namespace ompl
             base::State* goalState_;
 
             bool progressiveFMT_;
+
+            // For sorting a list of costs and getting only their sorted indices
+            struct CostIndexCompare
+            {
+                CostIndexCompare(const std::vector<base::Cost>& costs,
+                                 const base::OptimizationObjective &opt) :
+                    costs_(costs), opt_(opt)
+                {}
+                bool operator()(unsigned i, unsigned j)
+                {
+                    return opt_.isCostBetterThan(costs_[i],costs_[j]);
+                }
+                const std::vector<base::Cost>& costs_;
+                const base::OptimizationObjective &opt_;
+            };
         };
     }
 }
 
 
-#endif // OMPL_GEOMETRIC_PLANNERS_FMT2_
+#endif // OMPL_GEOMETRIC_PLANNERS_FMT3_
