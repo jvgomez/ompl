@@ -13,7 +13,7 @@ if (OMPL_BUILD_DEMOS)
       ${Boost_PROGRAM_OPTIONS_LIBRARY})
   endmacro(add_ompl_demo)
 
-  add_ompl_demo(demo_FMT2 FMTtest.cpp)
+  add_ompl_demo(demo_FMT3 FMTtest.cpp)
 
 endif(OMPL_BUILD_DEMOS)
 

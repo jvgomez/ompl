@@ -34,15 +34,12 @@
 
 /* Author: Javier V. Gomez */
 
-// TODO: encapsulate heuristics in the MotionCompare function.
-// TODO: udpdate documentation for name changes (set_w, set_h)
-// TODO: ask if I should do this on the FMT as well.
 // TODO: think about the possibility of inherit from FMT.
 // TODO: remove saveTree function.
 
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl/geometric/SimpleSetup.h>
-#include <ompl/geometric/planners/fmt/FMT2.h>
+#include <ompl/geometric/planners/fmt/FMT3.h>
 #include <ompl/util/PPM.h>
 
 #include <ompl/config.h>
@@ -54,7 +51,7 @@
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
 
-template<typename planner_t = og::FMT2>
+template<typename planner_t = og::FMT3>
 class Plane2DEnvironment
 {
 public:
@@ -158,7 +155,7 @@ public:
 
     void saveTree(const std::string &filename)
     {
-        ss_->getPlanner()->as<og::FMT2>()->saveTree(filename);
+        ss_->getPlanner()->as<og::FMT3>()->saveTree(filename);
     }
 
 private:
@@ -182,12 +179,12 @@ int main(int argc, char ** argv)
     boost::filesystem::path path(TEST_RESOURCES_DIR);
 
     //Plane2DEnvironment<og::FMT> env((path / "ppm/empty.ppm").string().c_str());
-    //Plane2DEnvironment<og::FMT2> env((path / "ppm/floor.ppm").string().c_str());
-    Plane2DEnvironment<og::FMT2> env((path / "ppm/easy.ppm").string().c_str());
+    //Plane2DEnvironment<og::FMT3> env((path / "ppm/floor.ppm").string().c_str());
+    Plane2DEnvironment<og::FMT3> env((path / "ppm/easy.ppm").string().c_str());
     //Plane2DEnvironment<og::AFMTH> env((path / "ppm/hard.ppm").string().c_str());
 
     //env.getPlanner()->as<og::FMT>()->setNearestK(false);
-    env.getPlanner()->as<og::FMT2>()->setNumSamples(10);
+    env.getPlanner()->as<og::FMT3>()->setNumSamples(10);
 
     if (env.plan(800, 800, 1500, 200))
     {
