@@ -60,21 +60,32 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     , nearestK_(false)
     , cacheCC_(true)
     , heuristics_(false)
-    , radiusMultiplier_(1.1)
+    , radiusMultiplier_(6)
     , progressiveFMT_(true)
+    , leavesResampling_(false)
+    , validityCheck_(false)
+    , selectiveConn_(false)
 {
+    extraNodes_ = 0;
     // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
     freeSpaceVolume_ = si_->getStateSpace()->getMeasure();
     lastGoalMotion_ = NULL;
 
-    specs_.approximateSolutions = false;
-    specs_.directed = false;
+    //specs_.approximateSolutions = false;
+    //specs_.directed = false;
 
     ompl::base::Planner::declareParam<unsigned int>("num_samples", this, &FMT3::setNumSamples, &FMT3::getNumSamples, "10:10:1000000");
     ompl::base::Planner::declareParam<double>("radius_multiplier", this, &FMT3::setRadiusMultiplier, &FMT3::getRadiusMultiplier, "0.1:0.05:50.");
     ompl::base::Planner::declareParam<bool>("nearest_k", this, &FMT3::setNearestK, &FMT3::getNearestK, "0,1");
     ompl::base::Planner::declareParam<bool>("cache_cc", this, &FMT3::setCacheCC, &FMT3::getCacheCC, "0,1");
     ompl::base::Planner::declareParam<bool>("heuristics", this, &FMT3::setHeuristics, &FMT3::getHeuristics, "0,1");
+
+    ompl::base::Planner::declareParam<bool>("leaves_resampling", this, &FMT3::setLR, &FMT3::getLR, "0,1");
+    ompl::base::Planner::declareParam<bool>("validity_check", this, &FMT3::setVC, &FMT3::getVC, "0,1");
+    ompl::base::Planner::declareParam<bool>("selective_conn", this, &FMT3::setSC, &FMT3::getSC, "0,1");
+
+    addPlannerProgressProperty("extra_nodes INTEGER",
+                                   boost::bind(&FMT3::getEN, this));
 }
 
 ompl::geometric::FMT3::~FMT3()
@@ -131,6 +142,7 @@ void ompl::geometric::FMT3::clear()
     neighborhoods_.clear();
 
     collisionChecks_ = 0;
+    extraNodes_ = 0;
 }
 
 void ompl::geometric::FMT3::getPlannerData(base::PlannerData &data) const
@@ -338,6 +350,14 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
             break;
         else if (progressiveFMT_ && !successfulExpansion)
         {
+            // Find all leaf nodes.
+           std::vector<Motion*> leaves;
+           if(leavesResampling_)
+           {
+               leaves.reserve(nn_->size());
+               findLeafNodes(leaves);
+           }
+
             // Sample and connect samples to tree only if there is
             // a possibility to connect to unvisited nodes.
             std::vector<Motion*>       nbh;
@@ -349,24 +369,41 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
             CostIndexCompare compareFn(costs, *opt_);
 
             Motion *m = new Motion(si_);
+            std::size_t it = 0; // Circular iterator
             while (!ptc && Open_.empty())
             {
-                sampler_->sampleUniform(m->getState());
-                // TODO: benchmark with and without isValid.
-                if(!si_->isValid(m->getState()))
+                std::size_t idx;
+                if(leavesResampling_)
+                {
+                    idx = it%leaves.size();
+                    ++it;
+                // TODO: r/2 is probably not the best to use since in some cases the connection
+                // to parent will be longer than r
+
+                    sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
+                }
+                else
+                    sampler_->sampleUniform(m->getState());
+
+                if(validityCheck_ && !si_->isValid(m->getState()))
                     continue;
 
                 // Does the new sample has a unvisited node as neighbor?
                 nn_->nearestR(m, NNr_, nbh);
                 bool connects = false;
-                for(std::size_t j = 0; j < nbh.size(); ++j)
+                if(selectiveConn_)
                 {
-                    if(nbh[j]->getSetType() == Motion::SET_UNVISITED)
+                    for(std::size_t j = 0; j < nbh.size(); ++j)
                     {
-                        connects = true;
-                        break;
+                        if(nbh[j]->getSetType() == Motion::SET_UNVISITED)
+                        {
+                            connects = true;
+                            break;
+                        }
                     }
                 }
+                else
+                    connects = true;
 
                 std::vector<Motion*> yNear;
                 if (connects)
@@ -428,6 +465,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                            saveNeighborhood(m);
                            updateNeighborhood(m, nbh, NNr_);
                            Open_.insert(m);
+                           ++extraNodes_;
                            z = m;
                            break;
                        }

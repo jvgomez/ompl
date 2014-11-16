@@ -176,7 +176,7 @@ namespace ompl
             }
 
            /** \brief Activates the cost to go heuristics when ordering the heap */
-           void setHeuristics (bool h)
+           void setHeuristics(bool h)
            {
                heuristics_ = h;
            }
@@ -186,6 +186,35 @@ namespace ompl
             bool getHeuristics() const
             {
                 return heuristics_;
+            }
+
+            void setLR (bool h)
+            {
+                leavesResampling_ = h;
+            }
+            bool getLR() const
+            {
+                return leavesResampling_;
+            }
+            void setVC(bool h)
+            {
+                validityCheck_ = h;
+            }
+            bool getVC() const
+            {
+                return validityCheck_;
+            }
+            void setSC (bool h)
+            {
+                selectiveConn_ = h;
+            }
+            bool getSC() const
+            {
+                return selectiveConn_;
+            }
+            std::string getEN() const
+            {
+                return boost::lexical_cast<std::string>(extraNodes_);
             }
 
             void saveTree(const std::string &filename);
@@ -475,6 +504,12 @@ namespace ompl
             base::State* goalState_;
 
             bool progressiveFMT_;
+
+            bool leavesResampling_;
+            bool validityCheck_;
+            bool selectiveConn_;
+            unsigned int extraNodes_;
+
 
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare

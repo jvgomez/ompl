@@ -48,13 +48,13 @@
 #include <ompl/datastructures/BinaryHeap.h>
 #include <ompl/tools/config/SelfConfig.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
-#include <ompl/geometric/planners/fmt/FMT3.h>
+#include <ompl/geometric/planners/fmt/FMT2.h>
 
 #include <fstream>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 
-ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
-    : base::Planner(si, "FMT3")
+ompl::geometric::FMT2::FMT2(const base::SpaceInformationPtr &si)
+    : base::Planner(si, "FMT2")
     , numSamples_(1000)
     , collisionChecks_(0)
     , nearestK_(false)
@@ -70,19 +70,19 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     specs_.approximateSolutions = false;
     specs_.directed = false;
 
-    ompl::base::Planner::declareParam<unsigned int>("num_samples", this, &FMT3::setNumSamples, &FMT3::getNumSamples, "10:10:1000000");
-    ompl::base::Planner::declareParam<double>("radius_multiplier", this, &FMT3::setRadiusMultiplier, &FMT3::getRadiusMultiplier, "0.1:0.05:50.");
-    ompl::base::Planner::declareParam<bool>("nearest_k", this, &FMT3::setNearestK, &FMT3::getNearestK, "0,1");
-    ompl::base::Planner::declareParam<bool>("cache_cc", this, &FMT3::setCacheCC, &FMT3::getCacheCC, "0,1");
-    ompl::base::Planner::declareParam<bool>("heuristics", this, &FMT3::setHeuristics, &FMT3::getHeuristics, "0,1");
+    ompl::base::Planner::declareParam<unsigned int>("num_samples", this, &FMT2::setNumSamples, &FMT2::getNumSamples, "10:10:1000000");
+    ompl::base::Planner::declareParam<double>("radius_multiplier", this, &FMT2::setRadiusMultiplier, &FMT2::getRadiusMultiplier, "0.1:0.05:50.");
+    ompl::base::Planner::declareParam<bool>("nearest_k", this, &FMT2::setNearestK, &FMT2::getNearestK, "0,1");
+    ompl::base::Planner::declareParam<bool>("cache_cc", this, &FMT2::setCacheCC, &FMT2::getCacheCC, "0,1");
+    ompl::base::Planner::declareParam<bool>("heuristics", this, &FMT2::setHeuristics, &FMT2::getHeuristics, "0,1");
 }
 
-ompl::geometric::FMT3::~FMT3()
+ompl::geometric::FMT2::~FMT2()
 {
     freeMemory();
 }
 
-void ompl::geometric::FMT3::setup()
+void ompl::geometric::FMT2::setup()
 {
     Planner::setup();
 
@@ -101,10 +101,10 @@ void ompl::geometric::FMT3::setup()
 
     if (!nn_)
         nn_.reset(tools::SelfConfig::getDefaultNearestNeighbors<Motion*>(si_->getStateSpace()));
-    nn_->setDistanceFunction(boost::bind(&FMT3::distanceFunction, this, _1, _2));
+    nn_->setDistanceFunction(boost::bind(&FMT2::distanceFunction, this, _1, _2));
 }
 
-void ompl::geometric::FMT3::freeMemory()
+void ompl::geometric::FMT2::freeMemory()
 {
     if (nn_)
     {
@@ -119,7 +119,7 @@ void ompl::geometric::FMT3::freeMemory()
     }
 }
 
-void ompl::geometric::FMT3::clear()
+void ompl::geometric::FMT2::clear()
 {
     Planner::clear();
     lastGoalMotion_ = NULL;
@@ -133,7 +133,7 @@ void ompl::geometric::FMT3::clear()
     collisionChecks_ = 0;
 }
 
-void ompl::geometric::FMT3::getPlannerData(base::PlannerData &data) const
+void ompl::geometric::FMT2::getPlannerData(base::PlannerData &data) const
 {
     Planner::getPlannerData(data);
     std::vector<Motion*> motions;
@@ -153,7 +153,7 @@ void ompl::geometric::FMT3::getPlannerData(base::PlannerData &data) const
     }
 }
 
-void ompl::geometric::FMT3::saveNeighborhood(Motion *m)
+void ompl::geometric::FMT2::saveNeighborhood(Motion *m)
 {
     // Check to see if neighborhood has not been saved yet
     if (neighborhoods_.find(m) == neighborhoods_.end())
@@ -178,7 +178,7 @@ void ompl::geometric::FMT3::saveNeighborhood(Motion *m)
 }
 
 // Calculate the unit ball volume for a given dimension
-double ompl::geometric::FMT3::calculateUnitBallVolume(const unsigned int dimension) const
+double ompl::geometric::FMT2::calculateUnitBallVolume(const unsigned int dimension) const
 {
     if (dimension == 0)
         return 1.0;
@@ -188,7 +188,7 @@ double ompl::geometric::FMT3::calculateUnitBallVolume(const unsigned int dimensi
             * calculateUnitBallVolume(dimension - 2);
 }
 
-double ompl::geometric::FMT3::calculateRadius(const unsigned int dimension, const unsigned int n) const
+double ompl::geometric::FMT2::calculateRadius(const unsigned int dimension, const unsigned int n) const
 {
     double a = 1.0 / (double)dimension;
     double unitBallVolume = calculateUnitBallVolume(dimension);
@@ -196,7 +196,7 @@ double ompl::geometric::FMT3::calculateRadius(const unsigned int dimension, cons
     return radiusMultiplier_ * 2.0 * std::pow(a, a) * std::pow(freeSpaceVolume_ / unitBallVolume, a) * std::pow(log((double)n) / (double)n, a);
 }
 
-void ompl::geometric::FMT3::sampleFree(const base::PlannerTerminationCondition &ptc)
+void ompl::geometric::FMT2::sampleFree(const base::PlannerTerminationCondition &ptc)
 {
     unsigned int nodeCount = 0;
     unsigned int sampleAttempts = 0;
@@ -224,7 +224,7 @@ void ompl::geometric::FMT3::sampleFree(const base::PlannerTerminationCondition &
     freeSpaceVolume_ = boost::math::binomial_distribution<>::find_upper_bound_on_p(sampleAttempts, nodeCount, 0.05) * si_->getStateSpace()->getMeasure();
 }
 
-void ompl::geometric::FMT3::assureGoalIsSampled(const ompl::base::GoalSampleableRegion *goal)
+void ompl::geometric::FMT2::assureGoalIsSampled(const ompl::base::GoalSampleableRegion *goal)
 {
     // Ensure that there is at least one node near each goal
     while (const base::State *goalState = pis_.nextGoal())
@@ -259,7 +259,7 @@ void ompl::geometric::FMT3::assureGoalIsSampled(const ompl::base::GoalSampleable
     } // For each goal
 }
 
-ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTerminationCondition &ptc)
+ompl::base::PlannerStatus ompl::geometric::FMT2::solve(const base::PlannerTerminationCondition &ptc)
 {
     if (lastGoalMotion_) {
         OMPL_INFORM("solve() called before clear(); returning previous solution");
@@ -453,7 +453,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
     }
 }
 
-void ompl::geometric::FMT3::traceSolutionPathThroughTree(Motion *goalMotion)
+void ompl::geometric::FMT2::traceSolutionPathThroughTree(Motion *goalMotion)
 {
     std::vector<Motion*> mpath;
     Motion *solution = goalMotion;
@@ -473,7 +473,7 @@ void ompl::geometric::FMT3::traceSolutionPathThroughTree(Motion *goalMotion)
     pdef_->addSolutionPath(base::PathPtr(path), false, -1.0, getName());
 }
 
-bool ompl::geometric::FMT3::expandTreeFromNode(Motion *&z)
+bool ompl::geometric::FMT2::expandTreeFromNode(Motion *&z)
 {
     // Find all nodes that are near z, and also in set Unvisited
 
@@ -538,7 +538,7 @@ bool ompl::geometric::FMT3::expandTreeFromNode(Motion *&z)
                 {
                     collision_free = si_->checkMotion(yMin->getState(), x->getState());
                     ++collisionChecks_;
-                    // Due to FMT3* design, it is only necessary to save unsuccesful
+                    // Due to FMT2* design, it is only necessary to save unsuccesful
                     // connection attemps because of collision
                     if (!collision_free)
                         yMin->addCC(x);
@@ -581,12 +581,12 @@ bool ompl::geometric::FMT3::expandTreeFromNode(Motion *&z)
     return true;
 }
 
-std::string ompl::geometric::FMT3::getCollisionCheckCount() const
+std::string ompl::geometric::FMT2::getCollisionCheckCount() const
 {
     return boost::lexical_cast<std::string>(collisionChecks_);
 }
 
-ompl::geometric::FMT3::Motion* ompl::geometric::FMT3::getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin)
+ompl::geometric::FMT2::Motion* ompl::geometric::FMT2::getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin)
 {
     Motion *min = NULL;
     const unsigned int neighborsSize = neighbors.size();
@@ -605,7 +605,7 @@ ompl::geometric::FMT3::Motion* ompl::geometric::FMT3::getBestParent(Motion *m, s
     return min;
 }
 
-void ompl::geometric::FMT3::findLeafNodes(std::vector<Motion*> &leaves)
+void ompl::geometric::FMT2::findLeafNodes(std::vector<Motion*> &leaves)
 {
     // TODO: can be optimized by adding a flag to the motion.
     // TODO: it may also be faster to check by childrens (tree traversal) instead of listing nodes.
@@ -621,7 +621,7 @@ void ompl::geometric::FMT3::findLeafNodes(std::vector<Motion*> &leaves)
 
 // TODO: this could be better implemented by returning something in saveNeighborhood()
 // TODO: note that the new neighbours added are not sorted.
-void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh, const double r)
+void ompl::geometric::FMT2::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh, const double r)
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
     {
@@ -653,7 +653,7 @@ void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Moti
 }
 
 
-void ompl::geometric::FMT3::saveTree(const std::string &filename)
+void ompl::geometric::FMT2::saveTree(const std::string &filename)
 {
     std::ofstream ofs;
     ofs.open(filename.c_str(), std::ofstream::trunc);
