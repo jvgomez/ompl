@@ -217,7 +217,18 @@ namespace ompl
                 return boost::lexical_cast<std::string>(extraNodes_);
             }
 
+            void setRewirePath(const bool rewirePath)
+            {
+                rewirePath_= rewirePath;
+            }
+
+            double getRewirePath() const
+            {
+                return rewirePath_;
+            }
+
             void saveTree(const std::string &filename);
+
         protected:
             /** \brief Representation of a motion
               */
@@ -435,6 +446,10 @@ namespace ompl
             // TODO: doc this
             Motion* getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin);
 
+            bool rewireSolutionPath(const base::PlannerTerminationCondition &ptc, Motion *goalMotion);
+
+            void removeFromParent(Motion *m);
+
             /** \brief A binary heap for storing explored motions in
                 cost-to-come sorted order */
             typedef ompl::BinaryHeap<Motion*, MotionCompare> MotionBinHeap;
@@ -509,7 +524,7 @@ namespace ompl
             bool validityCheck_;
             bool selectiveConn_;
             unsigned int extraNodes_;
-
+            bool rewirePath_;
 
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare
@@ -525,6 +540,7 @@ namespace ompl
                 const std::vector<base::Cost>& costs_;
                 const base::OptimizationObjective &opt_;
             };
+
         };
     }
 }

@@ -65,6 +65,7 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     , leavesResampling_(false)
     , validityCheck_(false)
     , selectiveConn_(false)
+    , rewirePath_(false)
 {
     extraNodes_ = 0;
     // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
@@ -83,6 +84,7 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     ompl::base::Planner::declareParam<bool>("leaves_resampling", this, &FMT3::setLR, &FMT3::getLR, "0,1");
     ompl::base::Planner::declareParam<bool>("validity_check", this, &FMT3::setVC, &FMT3::getVC, "0,1");
     ompl::base::Planner::declareParam<bool>("selective_conn", this, &FMT3::setSC, &FMT3::getSC, "0,1");
+    ompl::base::Planner::declareParam<bool>("rewire", this, &FMT3::setRewirePath, &FMT3::getRewirePath, "0,1");
 
     addPlannerProgressProperty("extra_nodes INTEGER",
                                    boost::bind(&FMT3::getEN, this));
@@ -170,11 +172,9 @@ void ompl::geometric::FMT3::saveNeighborhood(Motion *m)
     // Check to see if neighborhood has not been saved yet
     if (neighborhoods_.find(m) == neighborhoods_.end())
     {
+        // TODO: add nearestK version and reciprocity checks.
         std::vector<Motion*> nbh;
-        if (nearestK_)
-            nn_->nearestK(m, NNk_, nbh);
-        else
-            nn_->nearestR(m, NNr_, nbh);
+        nn_->nearestR(m, NNr_, nbh);
         if (!nbh.empty())
         {
             // Save the neighborhood but skip the first element, since it will be motion m
@@ -389,9 +389,14 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                     continue;
 
                 // Does the new sample has a unvisited node as neighbor?
-                nn_->nearestR(m, NNr_, nbh);
+                // TODO kNN reciprocity should be checked here.
+                //if(nearestK_)
+                //    nn_->nearestK(m, NNk_, nbh);
+                //else
+                    nn_->nearestR(m, NNr_, nbh);
+
                 bool connects = false;
-                if(selectiveConn_)
+                if(selectiveConn_ && !leavesResampling_)
                 {
                     for(std::size_t j = 0; j < nbh.size(); ++j)
                     {
@@ -415,6 +420,10 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                         if(nbh[j]->getSetType() == Motion::SET_CLOSED)
                             yNear.push_back(nbh[j]);
                     }
+
+                    // Sample again if the new sample does not connect to the tree.
+                    if(yNear.empty())
+                        continue;
 
                     // cache for distance computations
                     //
@@ -476,9 +485,18 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
         } // else if (progressiveFMT_ && !successfulExpansion)
     } // While not at goal
 
+    lastGoalMotion_ = z;
+
+    if(!ptc && rewirePath_)
+    {
+        //lastGoalMotion_ = z;
+        OMPL_DEBUG("Before rewiring cost: %f", lastGoalMotion_->getCost().value());
+        rewireSolutionPath(ptc, lastGoalMotion_);
+    }
+
     if (plannerSuccess)
     {
-        lastGoalMotion_ = z;
+        //lastGoalMotion_ = z;
         OMPL_DEBUG("Final path cost: %f", lastGoalMotion_->getCost().value());
         traceSolutionPathThroughTree(lastGoalMotion_);
         return base::PlannerStatus(true, false);
@@ -690,6 +708,99 @@ void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Moti
     }
 }
 
+bool ompl::geometric::FMT3::rewireSolutionPath(const base::PlannerTerminationCondition &ptc, Motion *goalMotion)
+{
+    std::vector<Motion*> mpath;
+    Motion *solution = goalMotion;
+    bool pathChanged = false;
+
+    while(!ptc && solution->getParent() != NULL)
+    {
+        mpath.push_back(solution);
+
+        // Get all nodes that are already in the tree near the current node.
+        std::vector<Motion*> xNear;
+        const std::vector<Motion*> &neighborhood = neighborhoods_[solution];
+        unsigned int neighborhoodSize = neighborhood.size();
+        xNear.reserve(neighborhoodSize);
+
+        for (unsigned int i = 0; i < neighborhoodSize; ++i)
+        {
+            // TODO: probably SET_OPEN could not happen in this case.
+            if (neighborhood[i]->getSetType() == Motion::SET_OPEN || neighborhood[i]->getSetType() == Motion::SET_CLOSED)
+                xNear.push_back(neighborhood[i]);
+        }
+
+        // Evaluate the rewiring cost for each neighbor in the tree.
+        unsigned int xNearSize = xNear.size();
+        std::vector<base::Cost> incCosts, costs;
+        std::vector<std::size_t> sortedCostIndices;
+        costs.reserve(xNear.size());
+        incCosts.reserve(xNear.size());
+        sortedCostIndices.reserve(xNear.size());
+
+        for (std::size_t i = 0 ; i < xNearSize; ++i)
+        {
+            incCosts[i] = opt_->motionCost(xNear[i]->getState(), solution->getState());
+            costs[i] = opt_->combineCosts(xNear[i]->getCost(), incCosts[i]);
+        }
+
+        // our functor for sorting nearest neighbors
+        CostIndexCompare compareFn(costs, *opt_);
+
+        // sort the nodes
+        // we're using index-value pairs so that we can get at
+        // original, unsorted indices
+        for (std::size_t i = 0; i < xNearSize; ++i)
+            sortedCostIndices[i] = i;
+        std::sort(sortedCostIndices.begin(), sortedCostIndices.begin() + xNearSize,
+                  compareFn);
+
+        // Collision checking until a better, valid connection is found.
+        for (std::vector<std::size_t>::const_iterator i = sortedCostIndices.begin();
+             i != sortedCostIndices.begin() + xNearSize; ++i)
+        {
+            if (xNear[*i] == solution->getParent()) // No update, parent is already the best possible connection.
+                break;
+
+            // Update if collision free.
+            else if (si_->checkMotion(xNear[*i]->getState(), solution->getState()))
+            {
+                removeFromParent(xNear[*i]);
+                solution->setCost(costs[*i]);
+                solution->setParent(xNear[*i]);
+                xNear[*i]->children.push_back(solution);
+                pathChanged = true;
+                break;
+            }
+        }
+        solution = solution->getParent();
+    }
+
+    // Update costs of the nodes in the new path.
+    const int mPathSize = mpath.size();
+    if(pathChanged)
+    {
+        for (int i = mPathSize - 2 ; i >= 0 ; --i)
+        {
+            base::Cost incCost = opt_->motionCost(mpath[i+1]->getState(), mpath[i]->getState());
+            mpath[i]->setCost(opt_->combineCosts(mpath[i+1]->getCost(), incCost));
+        }
+    }
+
+    return pathChanged;
+}
+
+void ompl::geometric::FMT3::removeFromParent(Motion *m)
+{
+    for (std::vector<Motion*>::iterator it = m->getParent()->children.begin();
+        it != m->getParent()->children.end(); ++it)
+        if (*it == m)
+        {
+            m->getParent()->children.erase(it);
+            break;
+        }
+}
 
 void ompl::geometric::FMT3::saveTree(const std::string &filename)
 {
