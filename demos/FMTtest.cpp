@@ -98,7 +98,7 @@ public:
         goal[0] = goal_row;
         goal[1] = goal_col;
         ss_->setStartAndGoalStates(start, goal);
-        ss_->solve(1);
+        ss_->solve(0.0035);
 
         /*const std::size_t ns = ss_->getProblemDefinition()->getSolutionCount();
         OMPL_INFORM("Found %d solutions", (int)ns);*/

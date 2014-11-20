@@ -55,12 +55,12 @@
 
 ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     : base::Planner(si, "FMT3")
-    , numSamples_(1000)
+    , numSamples_(200)
     , collisionChecks_(0)
-    , nearestK_(false)
+    , nearestK_(true)
     , cacheCC_(true)
     , heuristics_(false)
-    , radiusMultiplier_(6)
+    , radiusMultiplier_(1.1)
     , progressiveFMT_(true)
     , leavesResampling_(false)
     , validityCheck_(false)
@@ -174,7 +174,10 @@ void ompl::geometric::FMT3::saveNeighborhood(Motion *m)
     {
         // TODO: add nearestK version and reciprocity checks.
         std::vector<Motion*> nbh;
-        nn_->nearestR(m, NNr_, nbh);
+        if (nearestK_)
+            nn_->nearestK(m, NNk_, nbh);
+        else
+            nn_->nearestR(m, NNr_, nbh);
         if (!nbh.empty())
         {
             // Save the neighborhood but skip the first element, since it will be motion m
@@ -373,14 +376,11 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
             while (!ptc && Open_.empty())
             {
                 std::size_t idx;
-                if(leavesResampling_)
+                if(!nearestK_ && leavesResampling_)
                 {
                     idx = it%leaves.size();
                     ++it;
-                // TODO: r/2 is probably not the best to use since in some cases the connection
-                // to parent will be longer than r
-
-                    sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/2);
+                    sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_);
                 }
                 else
                     sampler_->sampleUniform(m->getState());
@@ -389,10 +389,9 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                     continue;
 
                 // Does the new sample has a unvisited node as neighbor?
-                // TODO kNN reciprocity should be checked here.
-                //if(nearestK_)
-                //    nn_->nearestK(m, NNk_, nbh);
-                //else
+                if(nearestK_)
+                    nn_->nearestK(m, NNk_, nbh);
+                else
                     nn_->nearestR(m, NNr_, nbh);
 
                 bool connects = false;
@@ -418,7 +417,22 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                     for(std::size_t j = 0; j < nbh.size(); ++j)
                     {
                         if(nbh[j]->getSetType() == Motion::SET_CLOSED)
-                            yNear.push_back(nbh[j]);
+                        {
+                            if (nearestK_)
+                            {
+                                // Only include neighbors that are mutually k-nearest
+                                // Relies on NN datastructure returning k-nearest in sorted order
+                                const base::Cost connCost = opt_->motionCost(nbh[j]->getState(), m->getState());
+                                const base::Cost worstCost = opt_->motionCost(neighborhoods_[nbh[j]].back()->getState(), nbh[j]->getState());
+
+                                if(opt_->isCostBetterThan(worstCost, connCost))
+                                    continue;
+                                else
+                                    yNear.push_back(nbh[j]);
+                            }
+                            else
+                                yNear.push_back(nbh[j]);
+                        }
                     }
 
                     // Sample again if the new sample does not connect to the tree.
@@ -472,7 +486,11 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
 
                            nn_->add(m);
                            saveNeighborhood(m);
-                           updateNeighborhood(m, nbh, NNr_);
+                           if(nearestK_)
+                               updateKNeighborhood(m,nbh);
+                           else
+                               updateNeighborhood(m, nbh);
+
                            Open_.insert(m);
                            ++extraNodes_;
                            z = m;
@@ -485,18 +503,15 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
         } // else if (progressiveFMT_ && !successfulExpansion)
     } // While not at goal
 
-    lastGoalMotion_ = z;
-
-    if(!ptc && rewirePath_)
-    {
-        //lastGoalMotion_ = z;
-        OMPL_DEBUG("Before rewiring cost: %f", lastGoalMotion_->getCost().value());
-        rewireSolutionPath(ptc, lastGoalMotion_);
-    }
-
     if (plannerSuccess)
     {
-        //lastGoalMotion_ = z;
+        lastGoalMotion_ = z;
+        if(!ptc && rewirePath_)
+        {
+            OMPL_DEBUG("Before rewiring cost: %f", lastGoalMotion_->getCost().value());
+            rewireSolutionPath(ptc, lastGoalMotion_);
+        }
+
         OMPL_DEBUG("Final path cost: %f", lastGoalMotion_->getCost().value());
         traceSolutionPathThroughTree(lastGoalMotion_);
         return base::PlannerStatus(true, false);
@@ -554,7 +569,7 @@ bool ompl::geometric::FMT3::expandTreeFromNode(Motion *&z)
                 if (opt_->isCostBetterThan(worstCost, connCost))
                     continue;
                 else
-                    xNear.push_back(zNeighborhood[i]);
+                    xNear.push_back(x);
             }
             else
                 xNear.push_back(x);
@@ -676,17 +691,20 @@ void ompl::geometric::FMT3::findLeafNodes(std::vector<Motion*> &leaves)
 }
 
 // TODO: this could be better implemented by returning something in saveNeighborhood()
-// TODO: note that the new neighbours added are not sorted.
-void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh, const double r)
+// TODO: note that the new neighbours added are not sorted. Just add a warning.
+// TODO: think if we really want to update closed neighboorhods.
+void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh)
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
     {
-        // If the neihborhood has not been saved yet, m will be automatically added
-        // since it is already included in the NN datastructure.
-        if (neighborhoods_.find(nbh[i]) == neighborhoods_.end())
+        // TODO : it should be included sorted! if the current NN datastructures does it.
+        // If CLOSED, the neighborhood already exists.
+        if(nbh[i]->getSetType() == Motion::SET_CLOSED || neighborhoods_.find(nbh[i]) != neighborhoods_.end())
+            neighborhoods_[nbh[i]].push_back(m); // TODO: save an iterator so the search is not done twice.
+        else
         {
             std::vector<Motion*> nbh2;
-            nn_->nearestR(nbh[i], r, nbh2);
+            nn_->nearestR(nbh[i], NNr_, nbh2);
             if (!nbh2.empty())
             {
                 // Save the neighborhood but skip the first element, since it will be motion m
@@ -699,11 +717,54 @@ void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Moti
                 neighborhoods_[nbh[i]] = std::vector<Motion*>(0);
             }
         }
-        // Neighborhood already saved, so we have to add m to it.
-        // TODO : it should be included sorted!
+    }
+}
+
+// TODO: mix with updateNeighborhood?.
+void ompl::geometric::FMT3::updateKNeighborhood(Motion *m, const std::vector<Motion*> nbh)
+{
+    for(std::size_t i = 0; i < nbh.size(); ++i)
+    {
+        // If CLOSED, the neighborhood already exists. If neighhboorhod already exists, we have
+        // to insert the node in the corresponding place of the neighborhood of the neighbor of m.
+        if(nbh[i]->getSetType() == Motion::SET_CLOSED || neighborhoods_.find(nbh[i]) != neighborhoods_.end())
+        {
+            const base::Cost connCost = opt_->motionCost(nbh[i]->getState(), m->getState());
+            const base::Cost worstCost = opt_->motionCost(neighborhoods_[nbh[i]].back()->getState(), nbh[i]->getState());
+
+            if (opt_->isCostBetterThan(worstCost, connCost))
+                continue;
+            else
+            {
+                // insert the neighbor in the vector in the correct order
+                std::vector<Motion*> &nbhToUpdate = neighborhoods_[nbh[i]];
+                for(std::size_t j = 0; j < nbhToUpdate.size(); ++j)
+                {
+                    // If connection to the new state is better than the current neighbor tested, insert.
+                    const base::Cost cost = opt_->motionCost(nbh[i]->getState(), nbhToUpdate[j]->getState());
+                    if(opt_->isCostBetterThan(connCost, cost))
+                    {
+                        nbhToUpdate.insert(nbhToUpdate.begin()+j, m);
+                        break;
+                    }
+                }
+            }
+        }
         else
         {
-            neighborhoods_[nbh[i]].push_back(m);
+            std::vector<Motion*> nbh2;
+            nn_->nearestK(nbh[i], NNk_, nbh2);
+            if (!nbh2.empty())
+            {
+                // Save the neighborhood but skip the first element, since it will be motion m
+                neighborhoods_[nbh[i]] = std::vector<Motion*>(nbh2.size() - 1, 0);
+                std::copy(nbh2.begin() + 1, nbh2.end(), neighborhoods_[nbh[i]].begin());
+            }
+            else
+            {
+                // Save an empty neighborhood
+                neighborhoods_[nbh[i]] = std::vector<Motion*>(0);
+            }
         }
     }
 }

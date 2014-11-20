@@ -441,7 +441,9 @@ namespace ompl
             void findLeafNodes(std::vector<Motion*> &leaves);
 
             // TODO: doc this
-            void updateNeighborhood(Motion *m, const std::vector<Motion *> nbh, const double r);
+            void updateNeighborhood(Motion *m, const std::vector<Motion *> nbh);
+
+            void updateKNeighborhood(Motion *m, const std::vector<Motion*> nbh);
 
             // TODO: doc this
             Motion* getBestParent(Motion *m, std::vector<Motion*> &neighbors, base::Cost &cMin);
