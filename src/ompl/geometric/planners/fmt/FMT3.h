@@ -212,9 +212,21 @@ namespace ompl
             {
                 return selectiveConn_;
             }
+            void setSR (bool h)
+            {
+                sampleReject_ = h;
+            }
+            bool getSR() const
+            {
+                return sampleReject_;
+            }
             std::string getEN() const
             {
                 return boost::lexical_cast<std::string>(extraNodes_);
+            }
+            std::string getES() const
+            {
+                return boost::lexical_cast<std::string>(extraSamples_);
             }
 
             void setRewirePath(const bool rewirePath)
@@ -526,7 +538,11 @@ namespace ompl
             bool validityCheck_;
             bool selectiveConn_;
             unsigned int extraNodes_;
+            unsigned int extraSamples_;
             bool rewirePath_;
+            bool sampleReject_;
+            base::Cost maxCost_;
+            unsigned int samplesRejected_;
 
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare

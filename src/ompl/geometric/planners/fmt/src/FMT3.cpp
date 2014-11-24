@@ -66,6 +66,7 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     , validityCheck_(false)
     , selectiveConn_(false)
     , rewirePath_(false)
+    , sampleReject_(false)
 {
     extraNodes_ = 0;
     // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
@@ -85,9 +86,16 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     ompl::base::Planner::declareParam<bool>("validity_check", this, &FMT3::setVC, &FMT3::getVC, "0,1");
     ompl::base::Planner::declareParam<bool>("selective_conn", this, &FMT3::setSC, &FMT3::getSC, "0,1");
     ompl::base::Planner::declareParam<bool>("rewire", this, &FMT3::setRewirePath, &FMT3::getRewirePath, "0,1");
+    ompl::base::Planner::declareParam<bool>("sample_reject", this, &FMT3::setSR, &FMT3::getSR, "0,1");
 
     addPlannerProgressProperty("extra_nodes INTEGER",
                                    boost::bind(&FMT3::getEN, this));
+
+    addPlannerProgressProperty("extra_samples INTEGER",
+                                   boost::bind(&FMT3::getES, this));
+
+    maxCost_ = base::Cost(0.0);
+    samplesRejected_ = 0;
 }
 
 ompl::geometric::FMT3::~FMT3()
@@ -145,6 +153,9 @@ void ompl::geometric::FMT3::clear()
 
     collisionChecks_ = 0;
     extraNodes_ = 0;
+    extraSamples_=0;
+    maxCost_ = base::Cost(0.0);
+    samplesRejected_ = 0;
 }
 
 void ompl::geometric::FMT3::getPlannerData(base::PlannerData &data) const
@@ -323,6 +334,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
     OMPL_INFORM("%s: Starting planning with %u states already in datastructure", getName().c_str(), nn_->size());
 
     // Calculate the nearest neighbor search radius
+    NNr_ = calculateRadius(si_->getStateDimension(), nn_->size());
     if (nearestK_)
     {
         NNk_ = std::ceil(std::pow(2.0 * radiusMultiplier_, (double)si_->getStateDimension()) *
@@ -332,7 +344,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
     }
     else
     {
-        NNr_ = calculateRadius(si_->getStateDimension(), nn_->size());
+        //NNr_ = calculateRadius(si_->getStateDimension(), nn_->size());
         OMPL_DEBUG("Using radius of %f", NNr_);
     }
 
@@ -376,7 +388,8 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
             while (!ptc && Open_.empty())
             {
                 std::size_t idx;
-                if(!nearestK_ && leavesResampling_)
+                //if(!nearestK_ && leavesResampling_)
+                if(leavesResampling_)
                 {
                     idx = it%leaves.size();
                     ++it;
@@ -384,6 +397,21 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                 }
                 else
                     sampler_->sampleUniform(m->getState());
+
+                // CostToCome sampling rejection
+                if (sampleReject_)
+                {
+                    const base::Cost sampleCost = opt_->motionCost(initMotion->getState(), m->getState());
+                    const base::Cost maxCost = opt_->combineCosts(maxCost, base::Cost(NNr_));
+
+                    if(opt_->isCostBetterThan(maxCost, sampleCost))
+                    {
+                        ++samplesRejected_;
+                        continue;
+                    }
+                }
+                else
+                    ++extraSamples_;
 
                 if(validityCheck_ && !si_->isValid(m->getState()))
                     continue;
@@ -491,6 +519,9 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                            else
                                updateNeighborhood(m, nbh);
 
+                           if(sampleReject_ && opt_->isCostBetterThan(maxCost_, m->getCost()))
+                               maxCost_ = m->getCost();
+
                            Open_.insert(m);
                            ++extraNodes_;
                            z = m;
@@ -502,6 +533,9 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
             } // while (!ptc && Open_.empty())
         } // else if (progressiveFMT_ && !successfulExpansion)
     } // While not at goal
+
+    if(sampleReject_)
+        std::cout << samplesRejected_ << std::endl;
 
     if (plannerSuccess)
     {
@@ -628,6 +662,10 @@ bool ompl::geometric::FMT3::expandTreeFromNode(Motion *&z)
                 x->setCost(cMin);
                 x->setHeuristicCost(opt_->motionCostHeuristic(x->getState(), goalState_));
                 yMin->children.push_back(x);
+
+                if(sampleReject_ && opt_->isCostBetterThan(maxCost_, x->getCost()))
+                    maxCost_ = x->getCost();
+
                 // Add x to Open
                 Open_.insert(x);
                 // Remove x from Unvisited and add to Open

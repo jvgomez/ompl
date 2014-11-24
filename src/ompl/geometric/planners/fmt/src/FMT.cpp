@@ -53,12 +53,12 @@
 
 ompl::geometric::FMT::FMT(const base::SpaceInformationPtr &si)
     : base::Planner(si, "FMT")
-    , numSamples_(1000)
+    , numSamples_(200)
     , collisionChecks_(0)
-    , nearestK_(false)
+    , nearestK_(true)
     , cacheCC_(true)
     , heuristics_(false)
-    , radiusMultiplier_(6)
+    , radiusMultiplier_(1.1)
 {
     // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
     freeSpaceVolume_ = si_->getStateSpace()->getMeasure();
