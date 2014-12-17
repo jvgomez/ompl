@@ -197,7 +197,8 @@ shinyServer(function(input, output, session) {
     # plot of overall performance
     perfPlot <- reactive({
         attr <- gsub(" ", "_", input$perfAttr)
-        query <- sprintf("SELECT plannerConfigs.name AS planner, runs.%s FROM plannerConfigs INNER JOIN runs ON plannerConfigs.id = runs.plannerid INNER JOIN experiments ON experiments.id = runs.experimentid WHERE experiments.name=\"%s\" AND experiments.version=\"%s\" AND (%s);",
+        #query <- sprintf("SELECT plannerConfigs.name AS planner, runs.%s FROM plannerConfigs INNER JOIN runs ON plannerConfigs.id = runs.plannerid INNER JOIN experiments ON experiments.id = runs.experimentid WHERE experiments.name=\"%s\" AND experiments.version=\"%s\" AND (%s);",
+        query <- sprintf("SELECT plannerConfigs.name AS planner, runs.%s FROM plannerConfigs INNER JOIN runs ON plannerConfigs.id = runs.plannerid INNER JOIN experiments ON experiments.id = runs.experimentid WHERE experiments.name=\"%s\" AND experiments.version=\"%s\" AND (%s) AND runs.status=\"6\";",
             attr,
             input$perfProblem,
             input$perfVersion,
@@ -205,6 +206,18 @@ shinyServer(function(input, output, session) {
         data <- dbGetQuery(con(), query)
         data$planner <- factor(data$planner, unique(data$planner), labels = sapply(unique(data$planner), plannerNameMapping))
         attribs <- perfAttrs(con())
+        
+        if (input$perfAttr == "time")
+            ylab_name <- "Time (s)"
+        else if (input$perfAttr == "status")
+            ylab_name <- "Runs"
+        else if (input$perfAttr == "extra nodes")
+            ylab_name <- "Additional samples"
+        else if (input$perfAttr == "solution length")
+            ylab_name <- "Path cost"
+        else
+            ylab_name <- input$perfAttr
+                    
         if (attribs$type[match(attr, attribs$name)] == "ENUM")
         {
             query <- sprintf("SELECT * FROM enums WHERE name=\"%s\";", attr)
@@ -215,7 +228,10 @@ shinyServer(function(input, output, session) {
                 levels=enum$value, labels=enum$description)
             p <- qplot(planner, data=data, geom="histogram", fill=attrAsFactor) +
                 # labels
-                theme(legend.title = element_blank(), text = element_text(size = 20))
+                #theme(legend.title = element_blank(), text = element_text(size = 30))
+                ylab(ylab_name) +
+                xlab("Planner ID") +
+                theme(legend.position = "none", text = element_text(size = 20))
         }
         else
         {
@@ -233,7 +249,9 @@ shinyServer(function(input, output, session) {
             {
                 p <- ggplot(data, aes_string(x = "planner", y = attr, group = "planner")) +
                     # labels
-                    ylab(input$perfAttr) +
+                    #ylab(input$perfAttr) +
+                    ylab(ylab_name) +
+                    xlab("Planner ID") +
                     theme(legend.position = "none", text = element_text(size = 20)) +
                     # box plots for boolean, integer, and real-valued attributes
                     geom_boxplot(color = I("#3073ba"), fill = I("#99c9eb"))
@@ -252,7 +270,7 @@ shinyServer(function(input, output, session) {
     })
     output$perfDownloadPlot <- downloadHandler(filename = 'perfplot.pdf',
         content = function(file) {
-            pdf(file=file, width=12, height=8)
+            pdf(file=file, width=10, height=4)
             print(perfPlot())
             dev.off()
         }
