@@ -55,7 +55,7 @@
 
 ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     : base::Planner(si, "FMT3")
-    , numSamples_(200)
+    , numSamples_(1000)
     , collisionChecks_(0)
     , nearestK_(true)
     , cacheCC_(true)
