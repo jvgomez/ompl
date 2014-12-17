@@ -534,9 +534,6 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
         } // else if (progressiveFMT_ && !successfulExpansion)
     } // While not at goal
 
-    if(sampleReject_)
-        std::cout << samplesRejected_ << std::endl;
-
     if (plannerSuccess)
     {
         lastGoalMotion_ = z;
