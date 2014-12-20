@@ -114,9 +114,6 @@ namespace ompl
                 return numSamples_;
             }
 
-            /** \brief Get the count of collision checks performed */
-            std::string getCollisionCheckCount() const;
-
             /** \brief If nearestK is true, FMT will be run using the Knearest strategy */
             void setNearestK(bool nearestK)
             {
@@ -285,9 +282,9 @@ namespace ompl
                     }
 
                     /** \brief Caches a failed collision check to m */
-                    void addCC(Motion *m, bool val = false)
+                    void addCC(Motion *m)
                     {
-                        collChecksDone_[m] = val;
+                        collChecksDone_.insert(m);
                     }
 
                     /** \brief Set the cost to go heuristic cost */
@@ -320,7 +317,7 @@ namespace ompl
                     SetType currentSet_;
 
                     /** \brief Contains the connections attempted FROM this node */
-                    std::map<Motion*, bool> collChecksDone_;
+                    std::set<Motion*> collChecksDone_;
             };
 
             /** \brief Comparator used to order motions in a binary heap */
@@ -398,7 +395,7 @@ namespace ompl
                 in set Open. Remove all newly connected nodes fromUnvisited and insert
                 them into Open. Remove motion z from Open, and update z to be the
                 current lowest cost-to-come node in Open */
-            bool expandTreeFromNode(Motion *&z);
+            bool expandTreeFromNode(Motion **z);
 
             /** \brief A binary heap for storing explored motions in
                 cost-to-come sorted order */
