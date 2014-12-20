@@ -231,7 +231,7 @@ shinyServer(function(input, output, session) {
                 #theme(legend.title = element_blank(), text = element_text(size = 30))
                 ylab(ylab_name) +
                 xlab("Planner ID") +
-                theme(legend.position = "none", text = element_text(size = 20))
+                theme(legend.position = "none", text = element_text(size = 12))
         }
         else
         {
