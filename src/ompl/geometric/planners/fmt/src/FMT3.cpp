@@ -393,7 +393,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                 {
                     idx = it%leaves.size();
                     ++it;
-                    sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_);
+                    sampler_->sampleUniformNear(m->getState(), leaves[idx]->getState(), NNr_/sqrt(si_->getStateDimension()));
                 }
                 else
                     sampler_->sampleUniform(m->getState());
@@ -714,29 +714,13 @@ ompl::geometric::FMT3::Motion* ompl::geometric::FMT3::getBestParent(Motion *m, s
 
 void ompl::geometric::FMT3::findLeafNodes(std::vector<Motion*> &leaves)
 {
-    /*std::vector<Motion*> tree;
+    std::vector<Motion*> tree;
     nn_->list(tree);
 
     for(std::size_t i = 0; i < tree.size(); ++i)
     {
         if(tree[i]->getSetType() == Motion::SET_CLOSED && tree[i]->children.size() == 0)
             leaves.push_back(tree[i]);
-    }*/
-    std::vector<Motion*> candidates;
-    candidates.reserve(nn_->size());
-    candidates.push_back(initMotion_);
-    leaves.reserve(nn_->size());
-    std::size_t j = 0;
-    while (j != candidates.size())
-    {
-        Motion *candidate = candidates[j++];
-        if (!candidate->children.size())
-            leaves.push_back(candidate);
-        else
-        {
-            candidates.insert(candidates.end(),
-            candidate->children.begin(), candidate->children.end());
-        }
     }
 }
 
