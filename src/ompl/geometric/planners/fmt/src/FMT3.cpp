@@ -183,7 +183,6 @@ void ompl::geometric::FMT3::saveNeighborhood(Motion *m)
     // Check to see if neighborhood has not been saved yet
     if (neighborhoods_.find(m) == neighborhoods_.end())
     {
-        // TODO: add nearestK version and reciprocity checks.
         std::vector<Motion*> nbh;
         if (nearestK_)
             nn_->nearestK(m, NNk_, nbh);
@@ -301,7 +300,8 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
 
     checkValidity();
     base::GoalSampleableRegion *goal = dynamic_cast<base::GoalSampleableRegion*>(pdef_->getGoal().get());
-    Motion *initMotion = NULL;
+    //Motion *initMotion = NULL;
+    initMotion_ = NULL;
 
     if (!goal)
     {
@@ -312,15 +312,15 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
     // Add start states to V (nn_) and Open
     while (const base::State *st = pis_.nextStart())
     {
-        initMotion = new Motion(si_);
-        si_->copyState(initMotion->getState(), st);
-        Open_.insert(initMotion);
-        initMotion->setSetType(Motion::SET_OPEN);
-        initMotion->setCost(opt_->initialCost(initMotion->getState()));
-        nn_->add(initMotion); // V <-- {x_init}
+        initMotion_ = new Motion(si_);
+        si_->copyState(initMotion_->getState(), st);
+        Open_.insert(initMotion_);
+        initMotion_->setSetType(Motion::SET_OPEN);
+        initMotion_->setCost(opt_->initialCost(initMotion_->getState()));
+        nn_->add(initMotion_); // V <-- {x_init}
     }
 
-    if (!initMotion)
+    if (!initMotion_)
     {
         OMPL_ERROR("Start state undefined");
         return base::PlannerStatus::INVALID_START;
@@ -351,7 +351,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
     // Execute the planner, and return early if the planner returns a failure
     bool plannerSuccess = false;
     bool successfulExpansion = false;
-    Motion *z = initMotion; // z <-- xinit
+    Motion *z = initMotion_; // z <-- xinit
     saveNeighborhood(z);
 
     while (!ptc)
@@ -401,7 +401,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                 // CostToCome sampling rejection
                 if (sampleReject_)
                 {
-                    const base::Cost sampleCost = opt_->motionCost(initMotion->getState(), m->getState());
+                    const base::Cost sampleCost = opt_->motionCost(initMotion_->getState(), m->getState());
                     const base::Cost maxCost = opt_->combineCosts(maxCost, base::Cost(NNr_));
 
                     if(opt_->isCostBetterThan(maxCost, sampleCost))
@@ -423,7 +423,8 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                     nn_->nearestR(m, NNr_, nbh);
 
                 bool connects = false;
-                if(selectiveConn_ && !leavesResampling_)
+                //if(selectiveConn_ && !leavesResampling_)
+                if(selectiveConn_)
                 {
                     for(std::size_t j = 0; j < nbh.size(); ++j)
                     {
@@ -713,29 +714,75 @@ ompl::geometric::FMT3::Motion* ompl::geometric::FMT3::getBestParent(Motion *m, s
 
 void ompl::geometric::FMT3::findLeafNodes(std::vector<Motion*> &leaves)
 {
-    // TODO: can be optimized by adding a flag to the motion.
-    // TODO: it may also be faster to check by childrens (tree traversal) instead of listing nodes.
-    std::vector<Motion*> tree;
+    /*std::vector<Motion*> tree;
     nn_->list(tree);
 
     for(std::size_t i = 0; i < tree.size(); ++i)
     {
         if(tree[i]->getSetType() == Motion::SET_CLOSED && tree[i]->children.size() == 0)
             leaves.push_back(tree[i]);
+    }*/
+    std::vector<Motion*> candidates;
+    candidates.reserve(nn_->size());
+    candidates.push_back(initMotion_);
+    leaves.reserve(nn_->size());
+    std::size_t j = 0;
+    while (j != candidates.size())
+    {
+        Motion *candidate = candidates[j++];
+        if (!candidate->children.size())
+            leaves.push_back(candidate);
+        else
+        {
+            candidates.insert(candidates.end(),
+            candidate->children.begin(), candidate->children.end());
+        }
     }
 }
 
 // TODO: this could be better implemented by returning something in saveNeighborhood()
-// TODO: note that the new neighbours added are not sorted. Just add a warning.
+// TODO: note that the new neighbours added are not sorted.
 // TODO: think if we really want to update closed neighboorhods.
 void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Motion*> nbh)
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
     {
-        // TODO : it should be included sorted! if the current NN datastructures does it.
+        // If CLOSED we do nothing.
+        if(nbh[i]->getSetType() == Motion::SET_CLOSED)
+            continue;
+        else
+        {
+            std::map<Motion*, std::vector<Motion*> >::iterator it;
+            if((it = neighborhoods_.find(nbh[i])) != neighborhoods_.end())
+                it->second.push_back(m);
+            else
+            {
+                std::vector<Motion*> nbh2;
+                nn_->nearestR(nbh[i], NNr_, nbh2);
+                if (!nbh2.empty())
+                {
+                    // Save the neighborhood but skip the first element, since it will be motion m
+                    neighborhoods_[nbh[i]] = std::vector<Motion*>(nbh2.size() - 1, 0);
+                    std::copy(nbh2.begin() + 1, nbh2.end(), neighborhoods_[nbh[i]].begin());
+                }
+                else
+                {
+                    // Save an empty neighborhood
+                    neighborhoods_[nbh[i]] = std::vector<Motion*>(0);
+                }
+            }
+        }
+    }
+
+
+    /*for(std::size_t i = 0; i < nbh.size(); ++i)
+    {
         // If CLOSED, the neighborhood already exists.
-        if(nbh[i]->getSetType() == Motion::SET_CLOSED || neighborhoods_.find(nbh[i]) != neighborhoods_.end())
-            neighborhoods_[nbh[i]].push_back(m); // TODO: save an iterator so the search is not done twice.
+        std::map<Motion*, std::vector<Motion*> >::iterator it;
+        if(nbh[i]->getSetType() == Motion::SET_CLOSED ||
+                (it = neighborhoods_.find(nbh[i])) != neighborhoods_.end())
+            it->second.push_back(m);
+            //neighborhoods_[nbh[i]].push_back(m);
         else
         {
             std::vector<Motion*> nbh2;
@@ -752,7 +799,7 @@ void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Moti
                 neighborhoods_[nbh[i]] = std::vector<Motion*>(0);
             }
         }
-    }
+    }*/
 }
 
 // TODO: mix with updateNeighborhood?.

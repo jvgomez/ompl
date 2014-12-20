@@ -544,6 +544,8 @@ namespace ompl
             base::Cost maxCost_;
             unsigned int samplesRejected_;
 
+            Motion *initMotion_;
+
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare
             {
