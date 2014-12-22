@@ -739,7 +739,7 @@ void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Moti
             std::map<Motion*, std::vector<Motion*> >::iterator it;
             if((it = neighborhoods_.find(nbh[i])) != neighborhoods_.end())
                 it->second.push_back(m);
-            else
+            /*else
             {
                 std::vector<Motion*> nbh2;
                 nn_->nearestR(nbh[i], NNr_, nbh2);
@@ -754,7 +754,7 @@ void ompl::geometric::FMT3::updateNeighborhood(Motion *m, const std::vector<Moti
                     // Save an empty neighborhood
                     neighborhoods_[nbh[i]] = std::vector<Motion*>(0);
                 }
-            }
+            }*/
         }
     }
 
