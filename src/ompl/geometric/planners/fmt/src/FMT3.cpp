@@ -63,7 +63,7 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     , radiusMultiplier_(1.1)
     , progressiveFMT_(true)
     , leavesResampling_(false)
-    , validityCheck_(false)
+    //, validityCheck_(true)
     , selectiveConn_(false)
     , rewirePath_(false)
     , sampleReject_(false)
@@ -413,7 +413,8 @@ ompl::base::PlannerStatus ompl::geometric::FMT3::solve(const base::PlannerTermin
                 else
                     ++extraSamples_;
 
-                if(validityCheck_ && !si_->isValid(m->getState()))
+                //if(validityCheck_ && !si_->isValid(m->getState()))
+                if(!si_->isValid(m->getState()))
                     continue;
 
                 // Does the new sample has a unvisited node as neighbor?

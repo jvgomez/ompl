@@ -215,13 +215,28 @@ shinyServer(function(input, output, session) {
                 input$perfVersion,
                 paste(sapply(input$perfPlanners, sqlPlannerSelect), collapse=" OR "))
         else
-            query <- sprintf("SELECT plannerConfigs.name AS planner, runs.%s FROM plannerConfigs INNER JOIN runs ON plannerConfigs.id = runs.plannerid INNER JOIN experiments ON experiments.id = runs.experimentid WHERE experiments.name=\"%s\" AND experiments.version=\"%s\" AND (%s);",
+            #query <- sprintf("SELECT plannerConfigs.name AS planner, runs.%s FROM plannerConfigs INNER JOIN runs ON plannerConfigs.id = runs.plannerid INNER JOIN experiments ON experiments.id = runs.experimentid WHERE experiments.name=\"%s\" AND experiments.version=\"%s\" AND (%s);",
+            query <- sprintf("SELECT plannerConfigs.name AS planner, runs.%s FROM plannerConfigs INNER JOIN runs ON plannerConfigs.id = runs.plannerid INNER JOIN experiments ON experiments.id = runs.experimentid WHERE experiments.name=\"%s\" AND experiments.version=\"%s\" AND (%s) AND runs.status=\"6\";",
                 attr,
                 input$perfProblem,
                 input$perfVersion,
                 paste(sapply(input$perfPlanners, sqlPlannerSelect), collapse=" OR "))
         data <- dbGetQuery(con(), query)
         data$planner <- factor(data$planner, unique(data$planner), labels = sapply(unique(data$planner), plannerNameMapping))
+        if (input$perfAttr == "time")
+            ylab_name <- "Time (s)"
+        else if (input$perfAttr == "status")
+            ylab_name <- "Runs"
+        else if (input$perfAttr == "extra nodes")
+            ylab_name <- "Additional nodes"
+        else if (input$perfAttr == "extra samples")
+            ylab_name <- "States sampled"
+        else if (input$perfAttr == "solution length")
+            ylab_name <- "Path cost"
+        else if (input$perfAttr == "graph states")
+            ylab_name <- "Graph states"
+        else
+            ylab_name <- input$perfAttr
         if (attribs$type[match(attr, attribs$name)] == "ENUM")
         {
             query <- sprintf("SELECT * FROM enums WHERE name=\"%s\";", attr)
@@ -232,7 +247,10 @@ shinyServer(function(input, output, session) {
                 levels=enum$value, labels=enum$description)
             p <- qplot(planner, data=data, geom="histogram", fill=attrAsFactor) +
                 # labels
-                theme(legend.title = element_blank(), text = fontSelection())
+                #theme(legend.title = element_blank(), text = fontSelection())
+                ylab(ylab_name) +
+                xlab("Planner ID") +
+                theme(legend.position = "none", text = fontSelection())
         }
         else
         {
@@ -273,7 +291,9 @@ shinyServer(function(input, output, session) {
                 else
                     p <- ggplot(data, aes_string(x = "planner", y = attr, group = "planner")) +
                         # labels
-                        ylab(input$perfAttr) +
+                        #ylab(input$perfAttr) +
+                        ylab(ylab_name) +
+                        xlab("Planner ID") +
                         theme(legend.position = "none", text = fontSelection()) +
                         # box plots for boolean, integer, and real-valued attributes
                         geom_boxplot(color = I("#3073ba"), fill = I("#99c9eb"))
