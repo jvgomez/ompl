@@ -52,9 +52,9 @@ namespace ompl
            The basic idea is to grow to RRTs, one from the start and
            one from the goal, and attempt to connect them.
            @par External documentation
-           J. Kuffner and S.M. LaValle, RRT-connect: An efficient approach to single-query path planning, in <em>Proc. 2000 IEEE Intl. Conf. on Robotics and Automation</em>, pp. 995–1001, Apr. 2000. DOI: [10.1109/ROBOT.2000.844730](http://dx.doi.org/10.1109/ROBOT.2000.844730)<br>
-           [[PDF]](http://ieeexplore.ieee.org/ielx5/6794/18246/00844730.pdf?tp=&arnumber=844730&isnumber=18246)
-           [[more]](http://msl.cs.uiuc.edu/~lavalle/rrtpubs.html)
+           J. Kuffner and S.M. LaValle, RRT-connect: An efficient approach to single-query path planning, in <em>Proc. 2000 IEEE Intl. Conf. on Robotics and Automation</em>, pp. 995–1001, Apr. 2000. DOI: <a href="http://dx.doi.org/10.1109/ROBOT.2000.844730">10.1109/ROBOT.2000.844730</a><br>
+           <a href="http://ieeexplore.ieee.org/ielx5/6794/18246/00844730.pdf?tp=&arnumber=844730&isnumber=18246">[PDF]</a>
+           <a href="http://msl.cs.uiuc.edu/~lavalle/rrtpubs.html">[more]</a>
         */
 
         /** \brief RRT-Connect (RRTConnect) */
@@ -88,6 +88,49 @@ namespace ompl
             {
                 return maxDistance_;
             }
+	
+	        // Data collection functions (for modified OMPL.app GUI)
+            void setNumSamples(const unsigned int numSamples) {
+                if (force_sample_size_) {
+                    if (numSamples > 0) {
+                        minNumSamples_ = numSamples;
+                        maxNumSamples_ = numSamples;
+                    } else {
+                        OMPL_ERROR("Cannot set number of samples to zero. No action taken.");
+                    }
+                }
+            }
+            void setMinAndMaxNumSamples(const unsigned int minNumSamples, const unsigned int maxNumSamples) {
+                if (maxNumSamples >= minNumSamples) {
+                    minNumSamples_ = minNumSamples;
+                    maxNumSamples_ = maxNumSamples;
+                    std::cout << "minNumSamples set to " << minNumSamples_ << std::endl;
+                    std::cout << "maxNumSamples set to " << maxNumSamples_ << std::endl;
+                    if (maxNumSamples == 0) {
+                        OMPL_ERROR("Cannot set max. number of samples to zero.");
+                    }
+                } else {
+                    OMPL_ERROR("Max. number of samples must be greater than or equal to the min. number of samples!");
+                }
+            }
+
+            unsigned int getNumSamples() const {
+                return minNumSamples_;
+            }
+
+            void setForceSampleSize(const bool force_sample_size) {
+                force_sample_size_  = force_sample_size;
+            }
+            bool getForceSampleSize() const {
+                return force_sample_size_;
+            }
+
+	        std::string getCollisionCheckCount() const;
+	        std::string getNodeCount() const;
+	        std::string getExploredNodeCount() const;
+
+	        // End data collection functions
+
 
             /** \brief Set a different nearest neighbors datastructure */
             template<template<typename T> class NN>
@@ -175,8 +218,21 @@ namespace ompl
             /** \brief The random number generator */
             RNG                           rng_;
 
-            /** \brief The pair of states in each tree connected during planning.  Used for PlannerData computation */
-            std::pair<base::State*, base::State*>      connectionPoint_;
+            /** \brief The pair(s) of states in each tree connected during planning.  Used for PlannerData computation */
+            std::vector< std::pair<base::State*, base::State*> >      connectionPoints_;
+
+
+	        //////////////////////////////
+            // Planner progress properties
+
+            /** \brief Number of iterations the algorithm performed */
+            unsigned int                                iterations_;
+            bool                                        force_sample_size_;
+	        unsigned int                                minNumSamples_;
+            unsigned int                                maxNumSamples_;
+
+            /** \brief Number of collisions checks performed by the algorithm */
+            unsigned int                                collisionChecks_;
         };
 
     }

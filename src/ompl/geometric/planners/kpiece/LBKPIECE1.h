@@ -69,9 +69,9 @@ namespace ompl
            @par External documentation
            - I.A. Şucan and L.E. Kavraki, Kinodynamic motion planning by interior-exterior cell exploration,
            in <em>Workshop on the Algorithmic Foundations of Robotics</em>, Dec. 2008.<br>
-           [[PDF]](http://ioan.sucan.ro/files/pubs/wafr2008.pdf)
-           - R. Bohlin and L.E. Kavraki, Path planning using lazy PRM, in <em>Proc. 2000 IEEE Intl. Conf. on Robotics and Automation</em>, pp. 521–528, 2000. DOI: [10.1109/ROBOT.2000.844107](http://dx.doi.org/10.1109/ROBOT.2000.844107)<br>
-           [[PDF]](http://ieeexplore.ieee.org/ielx5/6794/18235/00844107.pdf?tp=&arnumber=844107&isnumber=18235)
+           <a href="http://ioan.sucan.ro/files/pubs/wafr2008.pdf">[PDF]</a>
+           - R. Bohlin and L.E. Kavraki, Path planning using lazy PRM, in <em>Proc. 2000 IEEE Intl. Conf. on Robotics and Automation</em>, pp. 521–528, 2000. DOI: <a href="http://dx.doi.org/10.1109/ROBOT.2000.844107">10.1109/ROBOT.2000.844107</a><br>
+           <a href="http://ieeexplore.ieee.org/ielx5/6794/18235/00844107.pdf?tp=&arnumber=844107&isnumber=18235">[PDF]
         */
 
         /** \brief Lazy Bi-directional KPIECE with one level of discretization */
@@ -83,6 +83,21 @@ namespace ompl
             LBKPIECE1(const base::SpaceInformationPtr &si);
 
             virtual ~LBKPIECE1();
+
+	    // Data collection functions (for modified OMPL.app GUI)
+            void setNumSamples(const unsigned int numSamples) {
+                numSamples_ = numSamples;
+            }
+
+            unsigned int getNumSamples() const {
+                return numSamples_;
+            }
+
+	    std::string getCollisionCheckCount() const;
+	    std::string getNodeCount() const;
+	    std::string getExploredNodeCount() const;
+
+	    // End data collection functions
 
             /** \brief Set the projection evaluator. This class is
                 able to compute the projection of a given state. */
@@ -238,6 +253,15 @@ namespace ompl
 
             /** \brief The pair of states in each tree connected during planning.  Used for PlannerData computation */
             std::pair<base::State*, base::State*>      connectionPoint_;
+
+
+	    //////////////////////////////
+            // Planner progress properties
+	    unsigned int                                   iterations_;
+	    unsigned int                                   numSamples_;
+
+            /** \brief Number of collisions checks performed by the algorithm */
+            unsigned int                                   collisionChecks_;
         };
 
     }

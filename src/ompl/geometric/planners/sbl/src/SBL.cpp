@@ -40,13 +40,21 @@
 #include <limits>
 #include <cassert>
 
-ompl::geometric::SBL::SBL(const base::SpaceInformationPtr &si) : base::Planner(si, "SBL")
+ompl::geometric::SBL::SBL(const base::SpaceInformationPtr &si)
+    : base::Planner(si, "SBL")
+    , maxDistance_(0.0)
+    , iterations_(0)
+    , force_sample_size_(false)
+    , minNumSamples_(0)
+    , maxNumSamples_(UINT_MAX)
+    , collisionChecks_(0)
 {
     specs_.recognizedGoal = base::GOAL_SAMPLEABLE_REGION;
-    maxDistance_ = 0.0;
-    connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
 
+    Planner::declareParam<bool>("force_sample_size", this, &SBL::setForceSampleSize, &SBL::getForceSampleSize, "0,1" );
+    Planner::declareParam<unsigned int>("num_samples", this, &SBL::setNumSamples, &SBL::getNumSamples, "10:10:1000000" );
     Planner::declareParam<double>("range", this, &SBL::setRange, &SBL::getRange, "0.:1.:10000.");
+    //connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
 }
 
 ompl::geometric::SBL::~SBL()
@@ -85,6 +93,7 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
 
     if (!goal)
     {
+//        std::cout << getName() << ": Unknown type of goal" << std::endl;
         OMPL_ERROR("%s: Unknown type of goal", getName().c_str());
         return base::PlannerStatus::UNRECOGNIZED_GOAL_TYPE;
     }
@@ -100,12 +109,14 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
 
     if (tStart_.size == 0)
     {
+//        std::cout << getName() << ": Motion planning start tree could not be initialized!" << std::endl;
         OMPL_ERROR("%s: Motion planning start tree could not be initialized!", getName().c_str());
         return base::PlannerStatus::INVALID_START;
     }
 
     if (!goal->couldSample())
     {
+//        std::cout << getName() << ": Insufficient states in sampleable goal region" << std::endl;
         OMPL_ERROR("%s: Insufficient states in sampleable goal region", getName().c_str());
         return base::PlannerStatus::INVALID_GOAL;
     }
@@ -113,6 +124,8 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
     if (!sampler_)
         sampler_ = si_->allocValidStateSampler();
 
+    std::cout << getName() << ": Starting planning with "
+        << (int)(tStart_.size + tGoal_.size) << " states already in datastructure" << std::endl;
     OMPL_INFORM("%s: Starting planning with %d states already in datastructure", getName().c_str(), (int)(tStart_.size + tGoal_.size));
 
     std::vector<Motion*> solution;
@@ -120,9 +133,11 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
 
     bool      startTree = true;
     bool         solved = false;
-
-    while (ptc == false)
+    
+    while ( (ptc == false) && ((iterations_ < minNumSamples_) || (solved == false && iterations_ <= maxNumSamples_)) )
     {
+	    ++iterations_;
+
         TreeData &tree      = startTree ? tStart_ : tGoal_;
         startTree = !startTree;
         TreeData &otherTree = startTree ? tStart_ : tGoal_;
@@ -141,6 +156,7 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
             }
             if (tGoal_.size == 0)
             {
+//                std::cout << getName() << ": Unable to sample any valid states for goal tree" << std::endl;
                 OMPL_ERROR("%s: Unable to sample any valid states for goal tree", getName().c_str());
                 break;
             }
@@ -148,8 +164,10 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
 
         Motion *existing = selectMotion(tree);
         assert(existing);
-        if (!sampler_->sampleNear(xstate, existing->state, maxDistance_))
+        if (!sampler_->sampleNear(xstate, existing->state, maxDistance_)) {
+//            std::cout << "No sample near xstate." << std::endl;
             continue;
+        }
 
         /* create a motion */
         Motion *motion = new Motion(si_);
@@ -158,6 +176,7 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
         motion->root = existing->root;
         existing->children.push_back(motion);
 
+//        std::cout << "Adding motion to the tree..." << std::endl;
         addMotion(tree, motion);
 
         if (checkSolution(!startTree, tree, otherTree, motion, solution))
@@ -168,7 +187,8 @@ ompl::base::PlannerStatus ompl::geometric::SBL::solve(const base::PlannerTermina
 
             pdef_->addSolutionPath(base::PathPtr(path), false, 0.0, getName());
             solved = true;
-            break;
+//            std::cout << "Solved! solved = " << solved << std::endl;
+            //break;
         }
     }
 
@@ -204,9 +224,9 @@ bool ompl::geometric::SBL::checkSolution(bool start, TreeData &tree, TreeData &o
             if (isPathValid(tree, connect) && isPathValid(otherTree, connectOther))
             {
                 if (start)
-                    connectionPoint_ = std::make_pair(motion->state, connectOther->state);
+                    connectionPoints_.push_back( std::make_pair(motion->state, connectOther->state) );
                 else
-                    connectionPoint_ = std::make_pair(connectOther->state, motion->state);
+                    connectionPoints_.push_back( std::make_pair(connectOther->state, motion->state) );
 
                 /* extract the motions and put them in solution vector */
 
@@ -253,6 +273,7 @@ bool ompl::geometric::SBL::isPathValid(TreeData &tree, Motion *motion)
     for (int i = mpath.size() - 1 ; i >= 0 ; --i)
         if (!mpath[i]->valid)
         {
+	    ++collisionChecks_;
             if (si_->checkMotion(mpath[i]->parent->state, mpath[i]->state))
                 mpath[i]->valid = true;
             else
@@ -355,13 +376,17 @@ void ompl::geometric::SBL::clear()
     freeMemory();
 
     tStart_.grid.clear();
-    tStart_.size = 0;
+    tStart_.size        = 0;
     tStart_.pdf.clear();
 
     tGoal_.grid.clear();
-    tGoal_.size = 0;
+    tGoal_.size         = 0;
     tGoal_.pdf.clear();
-    connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
+
+    //connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
+    connectionPoints_.clear();
+    iterations_ 	    = 0;
+    collisionChecks_ 	= 0;
 }
 
 void ompl::geometric::SBL::getPlannerData(base::PlannerData &data) const
@@ -390,5 +415,25 @@ void ompl::geometric::SBL::getPlannerData(base::PlannerData &data) const
                 data.addEdge(base::PlannerDataVertex(motions[i][j]->state, 2),
                              base::PlannerDataVertex(motions[i][j]->parent->state, 2));
 
-    data.addEdge(data.vertexIndex(connectionPoint_.first), data.vertexIndex(connectionPoint_.second));
+    // Add the edge(s) connecting the two trees
+    for (unsigned int i = 0; i < connectionPoints_.size(); ++i) {
+        data.addEdge( data.vertexIndex(connectionPoints_[i].first), data.vertexIndex(connectionPoints_[i].second) );
+    }
 }
+
+std::string ompl::geometric::SBL::getCollisionCheckCount() const {
+    return boost::lexical_cast<std::string>(collisionChecks_);
+}
+
+std::string ompl::geometric::SBL::getNodeCount() const {
+    unsigned int Nduplicates 		= connectionPoints_.size();
+    return boost::lexical_cast<std::string>(tStart_.size + tGoal_.size - Nduplicates);
+}
+
+std::string ompl::geometric::SBL::getExploredNodeCount() const {
+    unsigned int Nsamples		        = iterations_;
+    unsigned int Ninitstates_seen	    = pis_.getSeenStartStatesCount();
+    unsigned int Ngoalstates_sampled	= pis_.getSampledGoalsCount();
+    return boost::lexical_cast<std::string>(Nsamples + Ninitstates_seen + Ngoalstates_sampled);
+}
+

@@ -76,8 +76,8 @@ namespace ompl
            no default projection is available either.
            @par External documentation
            G. Sánchez and J.-C. Latombe, A single-query bi-directional probabilistic roadmap planner with lazy collision checking, in <em>The Tenth International Symposium on Robotics Research</em>, pp. 403–417, 2001.
-           DOI: [10.1007/3-540-36460-9_27](http://dx.doi.org/10.1007/3-540-36460-9_27)<br>
-           [[PDF]](http://www.springerlink.com/content/9843341054386hh6/fulltext.pdf)
+           DOI: <a href="http://dx.doi.org/10.1007/3-540-36460-9_27">10.1007/3-540-36460-9_27</a><br>
+           <a href="http://www.springerlink.com/content/9843341054386hh6/fulltext.pdf">[PDF]</a>
         */
 
         /** \brief Single-Query Bi-Directional Probabilistic Roadmap
@@ -134,6 +134,50 @@ namespace ompl
             virtual void clear();
 
             virtual void getPlannerData(base::PlannerData &data) const;
+
+
+	        // Data collection functions (for modified OMPL.app GUI)
+            void setNumSamples(const unsigned int numSamples) {
+                if (force_sample_size_) {
+                    if (numSamples > 0) {
+                        minNumSamples_ = numSamples;
+                        maxNumSamples_ = numSamples;
+                    } else {
+                        OMPL_ERROR("Cannot set number of samples to zero. No action taken.");
+                    }
+                }
+            }
+            void setMinAndMaxNumSamples(const unsigned int minNumSamples, const unsigned int maxNumSamples) {
+                if (maxNumSamples >= minNumSamples) {
+                    minNumSamples_ = minNumSamples;
+                    maxNumSamples_ = maxNumSamples;
+                    std::cout << "minNumSamples set to " << minNumSamples_ << std::endl;
+                    std::cout << "maxNumSamples set to " << maxNumSamples_ << std::endl;
+                    if (maxNumSamples == 0) {
+                        OMPL_ERROR("Cannot set max. number of samples to zero.");
+                    }
+                } else {
+                    OMPL_ERROR("Max. number of samples must be greater than or equal to the min. number of samples!");
+                }
+            }
+
+            unsigned int getNumSamples() const {
+                return minNumSamples_;
+            }
+
+            void setForceSampleSize(const bool force_sample_size) {
+                force_sample_size_  = force_sample_size;
+            }
+            bool getForceSampleSize() const {
+                return force_sample_size_;
+            }
+
+	        std::string getCollisionCheckCount() const;
+	        std::string getNodeCount() const;
+	        std::string getExploredNodeCount() const;
+
+	        // End data collection functions
+
 
         protected:
 
@@ -272,8 +316,19 @@ namespace ompl
             /** \brief The random number generator to be used */
             RNG                                        rng_;
 
-            /** \brief The pair of states in each tree connected during planning.  Used for PlannerData computation */
-            std::pair<base::State*, base::State*>      connectionPoint_;
+            /** \brief The pair(s) of states in each tree connected during planning.  Used for PlannerData computation */
+            std::vector< std::pair<base::State*, base::State*> >      connectionPoints_;
+
+
+	        //////////////////////////////
+            // Planner progress properties
+            unsigned int                                iterations_;
+            bool                                        force_sample_size_;
+            unsigned int                                minNumSamples_;
+            unsigned int                                maxNumSamples_;
+
+            /** \brief Number of collisions checks performed by the algorithm */
+            unsigned int                                collisionChecks_;
         };
 
     }

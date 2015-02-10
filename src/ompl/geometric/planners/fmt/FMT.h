@@ -72,7 +72,7 @@ namespace ompl
            algorithm could check the same collision more than once. It increases the
            memory requirements to O(n logn), but as samples tend to infinity this
            bound tend to O(n).
-
+           
            @par External documentation
            L. Janson, A. Clark, and M. Pavone, Fast Marching Trees: a Fast Marching
            Sampling-Based Method for Optimal Motion Planning in Many Dimensions,
@@ -98,6 +98,8 @@ namespace ompl
 
             virtual void getPlannerData(base::PlannerData &data) const;
 
+        // Data collection functions (for modified OMPL.app GUI)
+
             /** \brief Set the number of states that the planner should sample.
                 The planner will sample this number of states in addition to the
                 initial states. If any of the goal states are not reachable from
@@ -114,24 +116,19 @@ namespace ompl
                 return numSamples_;
             }
 
-            /** \brief If nearestK is true, FMT will be run using the Knearest strategy */
-            void setNearestK(bool nearestK)
-            {
-                nearestK_ = nearestK;
-            }
+            std::string getCollisionCheckCount() const;
+        std::string getNodeCount() const;
+        std::string getExploredNodeCount() const;
 
-            /** \brief Get the state of the nearestK strategy */
-            bool getNearestK() const
-            {
-                return nearestK_;
-            }
+        // End data collection functions
 
             /** \brief The planner searches for neighbors of a node within a
                 cost r, where r is the value described for FMT* in Section 4
                 of [L. Janson, A. Clark, and M. Pavone, "Fast Marching Trees: a Fast
                 Marching Sampling-Based Method for Optimal Motion Planning in
                 Many Dimensions," International Symposium on
-                Robotics Research, 2013.               http://arxiv.org/pdf/1306.3532v3.pdf] For guaranteed asymptotic
+                Robotics Research, 2013. <a href="http://arxiv.org/pdf/1306.3532v3.pdf">
+                http://arxiv.org/pdf/1306.3532v3.pdf</a>] For guaranteed asymptotic
                 convergence, the user should choose a constant multiplier for
                 the search radius that is greater than one. The default value is 1.1.
                 In general, a radius multiplier between 0.9 and 5 appears to
@@ -150,6 +147,16 @@ namespace ompl
                 return radiusMultiplier_;
             }
 
+            void setNearestK(bool nearestK)
+            {
+                nearestK_ = nearestK;
+            }
+
+            bool getNearestK() const
+            {
+                return nearestK_;
+            }
+
             /** \brief Store the volume of the obstacle-free configuration space.
                 If no value is specified, the default assumes an obstacle-free
                 unit hypercube, freeSpaceVolume = (maximumExtent/sqrt(dimension))^(dimension) */
@@ -166,7 +173,7 @@ namespace ompl
             {
                 return freeSpaceVolume_;
             }
-
+            
             /** \brief Sets the collision check caching to save calls to the collision
                 checker with slightly memory usage as a counterpart */
             void setCacheCC(bool ccc)
@@ -271,7 +278,7 @@ namespace ompl
                     {
                         return currentSet_;
                     }
-
+                    
                     /** \brief Returns true if the connection to m has been already
                         tested and failed because of a collision */
                     bool alreadyCC(Motion *m)
@@ -407,6 +414,10 @@ namespace ompl
                 to be connected to nodes in the unexplored set Unvisited */
             MotionBinHeap Open_;
 
+            /** \brief A map of all of the elements stored within the
+                MotionBinHeap H, used to convert between Motion *and Element* */
+            //std::map<Motion*, MotionBinHeap::Element*> hElements_;
+
             /** \brief A map linking a motion to all of the motions within a
                 distance r of that motion */
             std::map<Motion*, std::vector<Motion*> > neighborhoods_;
@@ -414,11 +425,25 @@ namespace ompl
             /** \brief The number of samples to use when planning */
             unsigned int numSamples_;
 
-            /** \brief Number of collision checks performed by the algorithm */
-            unsigned int collisionChecks_;
+            /** \brief This planner uses a nearest neighbor search radius
+                proportional to the lower bound for optimality derived for FMT*
+                in Section 4 of [L. Janson, A. Clark, and M. Pavone, "Fast
+                Marching Trees: a Fast Marching Sampling-Based Method for
+                Optimal Motion Planning in Many Dimensions," International
+                Journal on Robotics Research, 2013.
+                <a href="http://arxiv.org/pdf/1306.3532v3.pdf">
+                http://arxiv.org/pdf/1306.3532v3.pdf</a>].  The radius multiplier
+                is the multiplier for the lower bound. For guaranteed asymptotic
+                convergence, the user should choose a multiplier for the search
+                radius that is greater than one. The default value is 1.1.
+                In general, a radius between 0.9 and 5 appears to perform the best
+             */
+            double radiusMultiplier_;
 
-            /** \brief Flag to activate the K nearest neighbors strategy */
-            bool nearestK_;
+             /** \brief The volume of the free configuration space */
+            double freeSpaceVolume_;
+
+            unsigned int collisionChecks_;
 
             /** \brief Flag to activate the collision check caching */
             bool cacheCC_;
@@ -426,29 +451,11 @@ namespace ompl
             /** \brief Flag to activate the cost to go heuristics */
             bool heuristics_;
 
-            /** \brief Radius employed in the nearestR strategy. */
+            bool nearestK_;
+
             double NNr_;
 
-            /** \brief K used in the nearestK strategy */
             unsigned int NNk_;
-
-            /** \brief The volume of the free configuration space, computed
-                as an upper bound with 95% confidence */
-            double freeSpaceVolume_;
-
-            /** \brief This planner uses a nearest neighbor search radius
-                proportional to the lower bound for optimality derived for FMT*
-                in Section 4 of [L. Janson, A. Clark, and M. Pavone, "Fast
-                Marching Trees: a Fast Marching Sampling-Based Method for
-                Optimal Motion Planning in Many Dimensions," International
-                Journal on Robotics Research, 2013.
-                http://arxiv.org/pdf/1306.3532v3.pdf].  The radius multiplier
-                is the multiplier for the lower bound. For guaranteed asymptotic
-                convergence, the user should choose a multiplier for the search
-                radius that is greater than one. The default value is 1.1.
-                In general, a radius between 0.9 and 5 appears to perform the best
-             */
-            double radiusMultiplier_;
 
             /** \brief A nearest-neighbor datastructure containing the set of all motions */
             boost::shared_ptr< NearestNeighbors<Motion*> > nn_;
@@ -461,11 +468,13 @@ namespace ompl
 
             /** \brief The most recent goal motion.  Used for PlannerData computation */
             Motion *lastGoalMotion_;
-
+            
             /** \brief Goal state caching to accelerate cost to go heuristic computation */
             base::State* goalState_;
+
         };
     }
 }
+
 
 #endif // OMPL_GEOMETRIC_PLANNERS_FMT_

@@ -37,16 +37,24 @@
 #include "ompl/geometric/planners/rrt/RRTConnect.h"
 #include "ompl/base/goals/GoalSampleableRegion.h"
 #include "ompl/tools/config/SelfConfig.h"
+#include <limits>
 
-ompl::geometric::RRTConnect::RRTConnect(const base::SpaceInformationPtr &si) : base::Planner(si, "RRTConnect")
+ompl::geometric::RRTConnect::RRTConnect(const base::SpaceInformationPtr &si)
+    : base::Planner(si, "RRTConnect")
+    , maxDistance_(0.0)
+    , iterations_(0)
+    , force_sample_size_(false)
+    , minNumSamples_(0)
+    , maxNumSamples_(UINT_MAX)
+    , collisionChecks_(0)
 {
-    specs_.recognizedGoal = base::GOAL_SAMPLEABLE_REGION;
-    specs_.directed = true;
+    specs_.recognizedGoal	= base::GOAL_SAMPLEABLE_REGION;
+    specs_.directed		    = true;
 
-    maxDistance_ = 0.0;
-
+    Planner::declareParam<bool>("force_sample_size", this, &RRTConnect::setForceSampleSize, &RRTConnect::getForceSampleSize, "0,1" );
+    Planner::declareParam<unsigned int>("num_samples", this, &RRTConnect::setNumSamples, &RRTConnect::getNumSamples, "10:10:1000000" );
     Planner::declareParam<double>("range", this, &RRTConnect::setRange, &RRTConnect::getRange, "0.:1.:10000.");
-    connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
+    //connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
 }
 
 ompl::geometric::RRTConnect::~RRTConnect()
@@ -104,7 +112,11 @@ void ompl::geometric::RRTConnect::clear()
         tStart_->clear();
     if (tGoal_)
         tGoal_->clear();
-    connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
+
+    //connectionPoint_ = std::make_pair<base::State*, base::State*>(NULL, NULL);
+    connectionPoints_.clear();
+    iterations_ 	    = 0;
+    collisionChecks_ 	= 0;
 }
 
 ompl::geometric::RRTConnect::GrowState ompl::geometric::RRTConnect::growTree(TreeData &tree, TreeGrowingInfo &tgi, Motion *rmotion)
@@ -127,6 +139,7 @@ ompl::geometric::RRTConnect::GrowState ompl::geometric::RRTConnect::growTree(Tre
     // if we are in the start tree, we just check the motion like we normally do;
     // if we are in the goal tree, we need to check the motion in reverse, but checkMotion() assumes the first state it receives as argument is valid,
     // so we check that one first
+    ++collisionChecks_;
     bool validMotion = tgi.start ? si_->checkMotion(nmotion->state, dstate) : si_->getStateValidityChecker()->isValid(dstate) && si_->checkMotion(dstate, nmotion->state);
 
     if (validMotion)
@@ -192,11 +205,13 @@ ompl::base::PlannerStatus ompl::geometric::RRTConnect::solve(const base::Planner
     bool startTree      = true;
     bool solved         = false;
 
-    while (ptc == false)
+    while ( (ptc == false) && ((iterations_ < minNumSamples_) || (solved == false && iterations_ <= maxNumSamples_)) )
     {
+	    iterations_++;
+
         TreeData &tree      = startTree ? tStart_ : tGoal_;
-        tgi.start = startTree;
-        startTree = !startTree;
+        tgi.start           = startTree;
+        startTree           = !startTree;
         TreeData &otherTree = startTree ? tStart_ : tGoal_;
 
         if (tGoal_->size() == 0 || pis_.getSampledGoalsCount() < tGoal_->size() / 2)
@@ -252,7 +267,7 @@ ompl::base::PlannerStatus ompl::geometric::RRTConnect::solve(const base::Planner
                 else
                     goalMotion = goalMotion->parent;
 
-                connectionPoint_ = std::make_pair(startMotion->state, goalMotion->state);
+                connectionPoints_.push_back( std::make_pair(startMotion->state, goalMotion->state) );
 
                 /* construct the solution path */
                 Motion *solution = startMotion;
@@ -280,7 +295,7 @@ ompl::base::PlannerStatus ompl::geometric::RRTConnect::solve(const base::Planner
 
                 pdef_->addSolutionPath(base::PathPtr(path), false, 0.0, getName());
                 solved = true;
-                break;
+                //break;
             }
         }
     }
@@ -329,6 +344,25 @@ void ompl::geometric::RRTConnect::getPlannerData(base::PlannerData &data) const
         }
     }
 
-    // Add the edge connecting the two trees
-    data.addEdge(data.vertexIndex(connectionPoint_.first), data.vertexIndex(connectionPoint_.second));
+    // Add the edge(s) connecting the two trees
+    for (unsigned int i = 0; i < connectionPoints_.size(); ++i) {
+        data.addEdge( data.vertexIndex(connectionPoints_[i].first), data.vertexIndex(connectionPoints_[i].second) );
+    }
 }
+
+std::string ompl::geometric::RRTConnect::getCollisionCheckCount() const {
+    return boost::lexical_cast<std::string>(collisionChecks_);
+}
+
+std::string ompl::geometric::RRTConnect::getNodeCount() const {
+    unsigned int Nduplicates 		= connectionPoints_.size();
+    return boost::lexical_cast<std::string>(tStart_->size() + tGoal_->size() - Nduplicates);
+}
+
+std::string ompl::geometric::RRTConnect::getExploredNodeCount() const {
+    unsigned int Nsamples		        = iterations_;
+    unsigned int Ninitstates_seen	    = pis_.getSeenStartStatesCount();
+    unsigned int Ngoalstates_sampled	= pis_.getSampledGoalsCount();
+    return boost::lexical_cast<std::string>(Nsamples + Ninitstates_seen + Ngoalstates_sampled);
+}
+

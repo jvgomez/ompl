@@ -54,16 +54,17 @@
 ompl::geometric::FMT::FMT(const base::SpaceInformationPtr &si)
     : base::Planner(si, "FMT")
     , numSamples_(1000)
+    , radiusMultiplier_(1.1)
+    , freeSpaceVolume_(si_->getStateSpace()->getMeasure())      // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
     , collisionChecks_(0)
-    , nearestK_(true)
     , cacheCC_(true)
     , heuristics_(false)
-    , radiusMultiplier_(1.1)
+    , nearestK_(true)
+    , NNr_(0)
+    , NNk_(0)
+    , lastGoalMotion_(NULL)
+    , goalState_(NULL)
 {
-    // An upper bound on the free space volume is the total space volume; the free fraction is estimated in sampleFree
-    freeSpaceVolume_ = si_->getStateSpace()->getMeasure();
-    lastGoalMotion_ = NULL;
-
     specs_.approximateSolutions = false;
     specs_.directed = false;
 
@@ -310,7 +311,6 @@ ompl::base::PlannerStatus ompl::geometric::FMT::solve(const base::PlannerTermina
     OMPL_INFORM("%s: Starting planning with %u states already in datastructure", getName().c_str(), nn_->size());
 
     // Calculate the nearest neighbor search radius
-    /// \TODO Create a PRM-like connection strategy
     if (nearestK_)
     {
         NNk_ = std::ceil(std::pow(2.0 * radiusMultiplier_, (double)si_->getStateDimension()) *
@@ -328,6 +328,7 @@ ompl::base::PlannerStatus ompl::geometric::FMT::solve(const base::PlannerTermina
     bool plannerSuccess = false;
     bool successfulExpansion = false;
     Motion *z = initMotion; // z <-- xinit
+    z->setSetType(Motion::SET_OPEN);
     saveNeighborhood(z);
 
     while (!ptc && !(plannerSuccess = goal->isSatisfied(z->getState())))
@@ -344,7 +345,6 @@ ompl::base::PlannerStatus ompl::geometric::FMT::solve(const base::PlannerTermina
         traceSolutionPathThroughTree(lastGoalMotion_);
 
         OMPL_DEBUG("Final path cost: %f", lastGoalMotion_->getCost().value());
-
         return base::PlannerStatus(true, false);
     } // if plannerSuccess
     else
@@ -443,7 +443,7 @@ bool ompl::geometric::FMT::expandTreeFromNode(Motion **z)
         }
         yNear.clear();
 
-        // If an optimal connection from Open to x was found
+        // If an optimal connection from H to x was found
         if (yMin != NULL)
         {
             bool collision_free = false;
@@ -503,3 +503,28 @@ bool ompl::geometric::FMT::expandTreeFromNode(Motion **z)
 
     return true;
 }
+
+std::string ompl::geometric::FMT::getCollisionCheckCount() const {
+    return boost::lexical_cast<std::string>(collisionChecks_);
+}
+
+std::string ompl::geometric::FMT::getNodeCount() const {
+    return getExploredNodeCount();
+}
+
+std::string ompl::geometric::FMT::getExploredNodeCount() const {
+    // THIS IS VALID FOR "GETNODECOUNT" BUT FORGETS TO INCLUDE NODES IN SET_UNVISITED 
+    // THAT WERE EXAMINED IN "EXPANDTREEFROMNODE" DURING THE SEARCH OVER
+    // NEAREST NEIGHBORS; SOME NODES IN SET_UNVISITED IN THE NN OF FRONTIER NODES ARE MISSING
+    unsigned int Nexplored = 0;
+    std::vector<Motion*> nodes;
+    nn_->list(nodes);
+    for ( unsigned int i = 0; i < nodes.size(); ++i ) {
+    if (nodes[i]->getSetType() != Motion::SET_UNVISITED) {
+        ++Nexplored;
+        }
+    }
+    return boost::lexical_cast<std::string>(Nexplored);
+}
+
+
