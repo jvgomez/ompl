@@ -40,6 +40,7 @@
 #include <ompl/base/spaces/RealVectorStateSpace.h>
 #include <ompl/geometric/SimpleSetup.h>
 #include <ompl/geometric/planners/fmt/FMT3.h>
+#include <ompl/geometric/planners/fmt/BFMT.h>
 #include <ompl/util/PPM.h>
 
 #include <ompl/config.h>
@@ -155,7 +156,7 @@ public:
 
     void saveTree(const std::string &filename)
     {
-        ss_->getPlanner()->as<og::FMT3>()->saveTree(filename);
+        ss_->getPlanner()->as<planner_t>()->saveTree(filename);
     }
 
 private:
@@ -180,13 +181,17 @@ int main(int argc, char ** argv)
 
     //Plane2DEnvironment<og::FMT> env((path / "ppm/empty.ppm").string().c_str());
     //Plane2DEnvironment<og::FMT3> env((path / "ppm/floor.ppm").string().c_str());
-    Plane2DEnvironment<og::FMT3> env((path / "ppm/easy.ppm").string().c_str());
+    //Plane2DEnvironment<og::FMT3> env((path / "ppm/easy.ppm").string().c_str());
     //Plane2DEnvironment<og::AFMTH> env((path / "ppm/hard.ppm").string().c_str());
 
-    //env.getPlanner()->as<og::FMT>()->setNearestK(false);
-    env.getPlanner()->as<og::FMT3>()->setNumSamples(10);
+    //Plane2DEnvironment<og::BFMT> env((path / "ppm/easy.ppm").string().c_str());
+    Plane2DEnvironment<og::BFMT> env((path / "ppm/empty.ppm").string().c_str());
 
-    if (env.plan(800, 800, 1500, 200))
+    //env.getPlanner()->as<og::FMT>()->setNearestK(false);
+    //env.getPlanner()->as<og::BFMT>()->setNumSamples(10);
+    env.getPlanner()->as<og::BFMT>()->setHeuristics(true);
+
+    if (env.plan(10, 1560, 1845, 30))
     {
         env.recordSolution();
         env.save("result_demo.ppm");

@@ -9,6 +9,9 @@
 #include <ompl/geometric/planners/fmt/BFMT.h>
 // #include "BiDirectionalFMT.h"
 
+#include <fstream>
+#include <ompl/base/spaces/RealVectorStateSpace.h>
+
 namespace ompl {
 namespace geometric {
 
@@ -25,17 +28,21 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     , exploration_(SWAP_EVERY_TIME)
     , termination_(OPTIMALITY)
     , precomputeNN_(false)
+    , heuristics_(false)
+    , cacheCC_(true)
 {
     specs_.approximateSolutions = false;
     specs_.directed             = false;
-    
+
     ompl::base::Planner::declareParam<unsigned int>("num_samples", this, &BFMT::setNumSamples, &BFMT::getNumSamples, "10:10:1000000" );
     ompl::base::Planner::declareParam<double>("radius_multiplier", this, &BFMT::setRadiusMultiplier, &BFMT::getRadiusMultiplier, "0.1:0.05:50." );
     ompl::base::Planner::declareParam<bool>("nearest_k", this, &BFMT::setNearestK, &BFMT::getNearestK, "0,1" );
     ompl::base::Planner::declareParam<bool>("balanced", this, &BFMT::setExploration, &BFMT::getExploration, "0,1" );
     ompl::base::Planner::declareParam<bool>("optimality", this, &BFMT::setTermination, &BFMT::getTermination, "0,1" );
+    ompl::base::Planner::declareParam<bool>("heuristics", this, &BFMT::setHeuristics, &BFMT::getHeuristics, "0,1");
+    ompl::base::Planner::declareParam<bool>("cache_cc", this, &BFMT::setCacheCC, &BFMT::getCacheCC, "0,1");
 }
-                
+
 BFMT::BFMT(const base::SpaceInformationPtr &si, const bool precompute_NN)
     : base::Planner(si, "BFMT")
     , numSamples_(1000)
@@ -49,6 +56,8 @@ BFMT::BFMT(const base::SpaceInformationPtr &si, const bool precompute_NN)
     , exploration_(SWAP_EVERY_TIME)
     , termination_(OPTIMALITY)
     , precomputeNN_(precompute_NN)
+    , heuristics_(false)
+    , cacheCC_(true)
 {
 }
 
@@ -66,6 +75,8 @@ BFMT::BFMT(const base::SpaceInformationPtr &si, const enum ExploreType explorati
     , exploration_(exploration)
     , termination_(termination)
     , precomputeNN_(precompute_NN)
+    , heuristics_(false)
+    , cacheCC_(true)
 {
 }
 
@@ -85,7 +96,11 @@ void BFMT::setup(void) {
         OMPL_INFORM("%s: No optimization objective specified. Defaulting to optimizing path length.", getName().c_str());
         opt_.reset(new base::PathLengthOptimizationObjective(si_));
     }
-    // H.getComparisonOperator().opt_ = opt_.get();
+
+    H[0].getComparisonOperator().opt_ = opt_.get();
+    H[0].getComparisonOperator().heuristics_ = heuristics_;
+    H[1].getComparisonOperator().opt_ = opt_.get();
+    H[1].getComparisonOperator().heuristics_ = heuristics_;
     
     if (!nn_) {
         nn_.reset(new NearestNeighborsGNAT<BiDirMotion*>());
@@ -178,7 +193,7 @@ void BFMT::getPlannerData( base::PlannerData &data ) const {
     }
 }
 
-void BFMT::saveNeighborhood( boost::shared_ptr< NearestNeighbors<BiDirMotion*> > nn, 
+void BFMT::saveNeighborhood( boost::shared_ptr< NearestNeighbors<BiDirMotion*> > nn,
         BiDirMotion* m) {
     
     // Check if neighborhood has already been saved
@@ -207,17 +222,24 @@ void BFMT::sampleFree( boost::shared_ptr<NearestNeighbors<BiDirMotion*> > nn,
         const base::PlannerTerminationCondition &ptc) {
     
     unsigned int nodeCount  = 0;
+    unsigned int sampleAttempts = 0;
     BiDirMotion *motion     = new BiDirMotion( si_, &tree_ );
 
+    // Sample numSamples_ number of nodes from the free configuration space
     while (nodeCount < numSamples_ && !ptc) {
         sampler_->sampleUniform(motion->getState());
+        sampleAttempts++;
         if (si_->isValid(motion->getState())) {     // collision checking
             ++nodeCount;
             nn->add(motion);
             motion = new BiDirMotion( si_, &tree_ );
         }
     }
+    si_->freeState(motion->getState());
     delete motion;
+
+    // 95% confidence limit for an upper bound for the true free space volume
+    freeSpaceVolume_ = boost::math::binomial_distribution<>::find_upper_bound_on_p(sampleAttempts, nodeCount, 0.05) * si_->getStateSpace()->getMeasure();
 }
 
 // Helper functions
@@ -231,12 +253,11 @@ double BFMT::calculateUnitBallVolume(const unsigned int dimension) const {
 }
 
 double BFMT::calculateRadius(const unsigned int dimension, const unsigned int n) const {
-    double a = 1.0/(double)dimension;
-    double lebesqueMeasure = freeSpaceVolume_;
+
+    double a = 1.0 / (double)dimension;
     double unitBallVolume = calculateUnitBallVolume(dimension);
 
-    double radius = radiusMultiplier_ * 2.0 * pow(1.0+a,a) * pow(lebesqueMeasure/unitBallVolume, a) * pow(log((double)n)/(double)n,a);
-    return radius;
+    return radiusMultiplier_ * 2.0 * std::pow(a, a) * std::pow(freeSpaceVolume_ / unitBallVolume, a) * std::pow(log((double)n) / (double)n, a);
 }
 
 void BFMT::initializeProblem( base::GoalSampleableRegion*& goal_s) {
@@ -278,6 +299,7 @@ base::PlannerStatus BFMT::solve(const base::PlannerTerminationCondition& ptc) {
             initMotion->currentSet_[FWD]    = BiDirMotion::SET_H;
             initMotion->cost_[FWD]          = opt_->initialCost(initMotion->getState());
             valid_initMotion                = true;
+            heurGoalState_[1] = initMotion->getState();
         }
     }
     
@@ -317,6 +339,7 @@ base::PlannerStatus BFMT::solve(const base::PlannerTerminationCondition& ptc) {
             goalMotion->currentSet_[REV]    = BiDirMotion::SET_H;
             goalMotion->cost_[REV]          = opt_->terminalCost(goalMotion->getState());
             valid_goalMotion                = true;
+            heurGoalState_[0] = goalMotion->getState();
         }
     }
     
@@ -348,7 +371,7 @@ base::PlannerStatus BFMT::solve(const base::PlannerTerminationCondition& ptc) {
 //    // add goal states to Vrev and Hrev
 //    H_elements[tree_][gMotion] = H[tree_].insert(gMotion);
 //    gMotion->setCurrentSet(BiDirMotion::SET_H);
-//    nn_->add(gMotion);				// V <-- {x_init}
+//    nn_->add(gMotion);                // V <-- {x_init}
     
     
     ///////////////////////////////////////////////////////////////////////////
@@ -489,17 +512,35 @@ void BFMT::expandTreeFromNode( BiDirMotion *&z, BiDirMotion *&connection_Point )
             }
         }
 
-
         // xMin was found
         if (xMin != NULL) {
-            ++collisionChecks_;
-            bool collision_free = si_->checkMotion(xMin->getState(), x->getState()); // collision checking
+            bool collision_free = false;
+            if (cacheCC_)
+            {
+                if (!xMin->alreadyCC(x))
+                {
+                    collision_free = si_->checkMotion(xMin->getState(), x->getState());
+                    ++collisionChecks_;
+                    // Due to FMT3* design, it is only necessary to save unsuccesful
+                    // connection attemps because of collision
+                    if (!collision_free)
+                        xMin->addCC(x);
+                }
+            }
+            else
+            {
+                ++collisionChecks_;
+                collision_free = si_->checkMotion(xMin->getState(), x->getState());
+            }
 
             if (collision_free) { // motion between yMin and x is obstacle free
                 // add edge from xMin to x
                 x->setParent(xMin);
                 x->setCost( cMin );
                 xMin->getChildren().push_back(x);
+
+                if (heuristics_)
+                    x->setHeuristicCost(opt_->motionCostHeuristic(x->getState(), heurGoalState_[tree_]));
 
                 // check if new node x is in the other tree; if so, save result
                 if (x->getOtherSet() != BiDirMotion::SET_W) {
@@ -515,21 +556,21 @@ void BFMT::expandTreeFromNode( BiDirMotion *&z, BiDirMotion *&connection_Point )
                         }
                     }
                 }
-                
+
                 H_new.push_back(x);                     // add x to H_new
                 //TODO remove the following line??
                 x->setCurrentSet(BiDirMotion::SET_NULL);     // remove x from W
             }
         }
     } // End "for x in Znear"
-    
+
     // Remove motion z from binary heap and map
     BiDirMotionBinHeap::Element* zElement = H_elements[tree_][z];
     H[tree_].remove(zElement);
     H_elements[tree_].erase(z);
     z->setCurrentSet(BiDirMotion::SET_NULL);
     //OMPL_DEBUG("Hnew size = %i\n", H_new.size());
-    
+
     // add nodes in H_new to H
     for (unsigned int i = 0; i < H_new.size(); i++) {
         H_elements[tree_][H_new.at(i)] = H[tree_].insert(H_new.at(i));
@@ -703,11 +744,63 @@ std::string BFMT::getExploredNodeCount() const {
     BiDirMotionPtrs nodes;
     nn_->list(nodes);
     for ( unsigned int i = 0; i < nodes.size(); ++i ) {
-	if (nodes[i]->currentSet_[FWD] != BiDirMotion::SET_W || nodes[i]->currentSet_[REV] != BiDirMotion::SET_W) {
-	    ++Nexplored;
+    if (nodes[i]->currentSet_[FWD] != BiDirMotion::SET_W || nodes[i]->currentSet_[REV] != BiDirMotion::SET_W) {
+        ++Nexplored;
         }
     }
     return boost::lexical_cast<std::string>(Nexplored);
+}
+
+void BFMT::saveTree(const std::string &filename)
+{
+    std::ofstream ofs;
+    ofs.open(filename.c_str(), std::ofstream::trunc);
+    ofs << std::setprecision(6);
+    std::vector<BiDirMotion *> motions;
+    nn_->list(motions);
+
+    for (size_t i = 0; i < motions.size(); ++i)
+    {
+        int tree;
+        if (motions[i]->getAnyParent(tree)) {
+            int tree = -1;
+            ofs << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[0] << "\t"
+                << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[1] << "\t"
+                << motions[i]->getAnyParent(tree)->getState()->as<base::RealVectorStateSpace::StateType>()->values[0] << "\t"
+                << motions[i]->getAnyParent(tree)->getState()->as<base::RealVectorStateSpace::StateType>()->values[1] << "\t";
+
+            if (tree == 0) {
+               ofs << 0;
+            }
+            else if (tree == 1) {
+               ofs << 1;
+            }
+            else { ofs << 2;}
+                   /*if (motions[i]->getCurrentSet() == BiDirMotion::SET_NULL) {
+                       ofs << 0;
+                   }
+                   else if (motions[i]->getOtherSet() == BiDirMotion::SET_NULL) {
+                       ofs << 1;
+                   }
+                   else { ofs << 2;}*/
+
+            ofs << std::endl;
+                   /*motions[i]->getHeuristicCost() << "\t"
+                << opt_->combineCosts(motions[i]->getCost(), motions[i]->getHeuristicCost()) << std::endl;*/
+        }
+        else {
+            ofs << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[0] << "\t"
+                << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[1] << "\t"
+                << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[0] << "\t"
+                << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[1] << "\t"
+                << 0 <<
+
+                std::endl;
+                //"\t" << 0 << "\t"<< 0 << std::endl;
+        }
+    }
+
+    ofs.close();
 }
 
 }   // End "geometric" namespace
