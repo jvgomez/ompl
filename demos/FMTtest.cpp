@@ -99,7 +99,7 @@ public:
         goal[0] = goal_row;
         goal[1] = goal_col;
         ss_->setStartAndGoalStates(start, goal);
-        ss_->solve(1);
+        ss_->solve(0.5);
 
         /*const std::size_t ns = ss_->getProblemDefinition()->getSolutionCount();
         OMPL_INFORM("Found %d solutions", (int)ns);*/
@@ -184,14 +184,15 @@ int main(int argc, char ** argv)
     //Plane2DEnvironment<og::FMT3> env((path / "ppm/easy.ppm").string().c_str());
     //Plane2DEnvironment<og::AFMTH> env((path / "ppm/hard.ppm").string().c_str());
 
-    //Plane2DEnvironment<og::BFMT> env((path / "ppm/easy.ppm").string().c_str());
-    Plane2DEnvironment<og::BFMT> env((path / "ppm/empty.ppm").string().c_str());
+    Plane2DEnvironment<og::BFMT> env((path / "ppm/easy.ppm").string().c_str());
+    //Plane2DEnvironment<og::BFMT> env((path / "ppm/empty.ppm").string().c_str());
 
     //env.getPlanner()->as<og::FMT>()->setNearestK(false);
-    //env.getPlanner()->as<og::BFMT>()->setNumSamples(10);
+    env.getPlanner()->as<og::BFMT>()->setNumSamples(10);
     env.getPlanner()->as<og::BFMT>()->setHeuristics(true);
 
-    if (env.plan(10, 1560, 1845, 30))
+    //if (env.plan(10, 1560, 1845, 30))
+    if (env.plan(800, 800, 1500, 200))
     {
         env.recordSolution();
         env.save("result_demo.ppm");

@@ -164,6 +164,16 @@ namespace ompl {
                  return cacheCC_;
              }
 
+             void setExtendedFMT(bool efmt)
+             {
+                 extendedFMT_ = efmt;
+             }
+
+             bool getExtededFMT() const
+             {
+                 return extendedFMT_;
+             }
+
             void saveTree(const std::string &filename);
 
             // Specialized class for bi-directional trees
@@ -240,13 +250,26 @@ namespace ompl {
                 {
                     return hcost_[*tree_];
                 }
+                /** \brief Set the cost to go heuristic cost */
+                void setOtherHeuristicCost(const base::Cost h)
+                {
+                    hcost_[(*tree_+1) % 2] = h;
+                }
+
+                /** \brief Get the cost to go heuristic cost */
+                base::Cost getOtherHeuristicCost() const
+                {
+                    return hcost_[(*tree_+1) % 2];
+                }
 
                 inline base::Cost       getCost(void)           const           { return this->cost_[*tree_]; }
                 inline base::Cost       getOtherCost(void)      const           { return this->cost_[(*tree_+1) % 2]; }
                 inline void             setCost(double cost)                    { this->cost_[*tree_] = base::Cost(cost); }
                 inline void             setCost(base::Cost cost)                { this->cost_[*tree_] = cost; }
+                inline void             setOtherCost(base::Cost cost)            { this->cost_[(*tree_+1) % 2] = cost; }
 
                 inline void             setParent(BiDirMotion* parent)          { this->parent_[*tree_] = parent; }
+                inline void             setOtherParent(BiDirMotion* parent)     { this->parent_[(*tree_+1) % 2] = parent; }
                 inline BiDirMotion*     getParent(void)         const           { return this->parent_[*tree_]; }
                 inline BiDirMotion*     getAnyParent(int& tree)                 {
                     if (this->parent_[*tree_]) {
@@ -261,9 +284,12 @@ namespace ompl {
                 }
 
                 inline void             setChildren(BiDirMotionPtrs children)   { this->children_[*tree_] = children; }
+                //TODO make these return &
                 inline BiDirMotionPtrs  getChildren(void)       const           { return this->children_[*tree_]; }
+                inline BiDirMotionPtrs  getOtherChildren(void)       const      { return this->children_[(*tree_+1) % 2]; }
 
                 inline void             setCurrentSet(SetType set)              { this->currentSet_[*tree_] = set; }
+                inline void             setOtherCurrentSet(SetType set)         { this->currentSet_[(*tree_+1) % 2] = set; }
                 inline SetType          getCurrentSet(void)     const           { return this->currentSet_[*tree_]; }
                 inline SetType          getOtherSet(void)       const           { return this->currentSet_[(*tree_+1) % 2]; }
 
@@ -331,7 +357,11 @@ namespace ompl {
             
             // Trace a path of nodes along a tree towards the root (forward or reverse)
             void tracePath( BiDirMotion *z, BiDirMotionPtrs& path );
-            
+
+            void updateNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion *> nbh);
+
+            void updateKNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion*> nbh);
+
             // Member variables
             unsigned int                numSamples_;
             double                      radiusMultiplier_;
@@ -361,6 +391,24 @@ namespace ompl {
             base::State* heurGoalState_[2];
 
             bool cacheCC_;
+
+            bool extendedFMT_;
+
+            // For sorting a list of costs and getting only their sorted indices
+            struct CostIndexCompare
+            {
+                CostIndexCompare(const std::vector<base::Cost>& costs,
+                                 const base::OptimizationObjective &opt) :
+                    costs_(costs), opt_(opt)
+                {}
+                bool operator()(unsigned i, unsigned j)
+                {
+                    return opt_.isCostBetterThan(costs_[i],costs_[j]);
+                }
+                const std::vector<base::Cost>& costs_;
+                const base::OptimizationObjective &opt_;
+            };
+
         };
         
     }   // End "geometric" namespace
