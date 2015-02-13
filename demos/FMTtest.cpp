@@ -188,7 +188,7 @@ int main(int argc, char ** argv)
     //Plane2DEnvironment<og::BFMT> env((path / "ppm/empty.ppm").string().c_str());
 
     //env.getPlanner()->as<og::FMT>()->setNearestK(false);
-    env.getPlanner()->as<og::BFMT>()->setNumSamples(10);
+    env.getPlanner()->as<og::BFMT>()->setNumSamples(5);
     env.getPlanner()->as<og::BFMT>()->setHeuristics(true);
 
     //if (env.plan(10, 1560, 1845, 30))

@@ -29,7 +29,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     , termination_(OPTIMALITY)
     , precomputeNN_(false)
     , heuristics_(false)
-    , cacheCC_(true)
+    , cacheCC_(false)
     , extendedFMT_(true)
 {
     specs_.approximateSolutions = false;
@@ -482,6 +482,7 @@ void BFMT::expandTreeFromNode( BiDirMotion *&z, BiDirMotion *&connection_Point )
             zNear.push_back(zNeighborhood[i]);
         }
     }
+
     // OMPL_DEBUG("zNbhd size = %i\n", zNeighborhood.size());
     // OMPL_DEBUG("Znear size = %i\n", zNear.size());
     
@@ -500,7 +501,6 @@ void BFMT::expandTreeFromNode( BiDirMotion *&z, BiDirMotion *&connection_Point )
                 xNear.push_back(xNeighborhood[j]);
             }
         }
-
         // Find the node in Xnear with minimum cost-to-come in the current tree
         BiDirMotion* xMin   = NULL;
         double cMin         = std::numeric_limits<double>::infinity();
@@ -628,160 +628,142 @@ bool BFMT::plan( BiDirMotion *x_init, BiDirMotion *x_goal,
     while (success == false) {
 
         expandTreeFromNode( z, connection_Point );
-        
+
         // Check if the algorithm should terminate.  Possibly redefines connection_Point.
         if ( termination(z, connection_Point, ptc) ) {
             success = true;
-        } else {
+        } else
+        {   // TODO: these if can be simplified.
             if (H[tree_].empty() && H[(tree_+1) % 2].empty()) {
-                if (!extendedFMT_) {
-                    OMPL_INFORM("Both H are empty before path was found --> no feasible path exists");
-                    earlyFailure = true;
-                    return earlyFailure;
-                }
-                // Extended BFMT starts here.
-                else
-                {
-                    OMPL_INFORM("Both H are empty before path was found --> eBFMT!");
-                    // Sample and connect samples to tree only if there is
-                    // a possibility to connect to unvisited nodes.
-                    std::vector<BiDirMotion*>  nbh;
-                    std::vector<base::Cost>    costs;
-                    std::vector<base::Cost>    incCosts;
-                    std::vector<std::size_t>   sortedCostIndices;
+                OMPL_INFORM("Both H are empty before path was found --> no feasible path exists");
+                earlyFailure = true;
+                return earlyFailure;
+            } // Extended BFMT starts here.
+            else if (H[tree_].empty())
+                insertNewSampleInOpen(ptc);
+            /*else if (H[(tree_+1) % 2].empty()) {
+                swapTrees();
+                insertNewSampleInOpen(ptc);
+            }*/
 
-                    // our functor for sorting nearest neighbors
-                    CostIndexCompare compareFn(costs, *opt_);
-
-                    BiDirMotion *m = new BiDirMotion(si_, &tree_);
-                    while (!ptc && H[tree_].empty() && H[(tree_+1) % 2].empty())
-                    {
-                        // Get new sample and check whether it is valid.
-                        sampler_->sampleUniform(m->getState());
-                        if(!si_->isValid(m->getState()))
-                            continue;
-
-                        // Get neighbours of the new sample in both trees.
-                        std::vector<BiDirMotion*> yNear;
-                        if(nearestK_)
-                            nn_->nearestK(m, NNk, nbh);
-                        else
-                            nn_->nearestR(m, NNr, nbh);
-
-                        yNear.reserve(nbh.size());
-                        for(std::size_t j = 0; j < nbh.size(); ++j)
-                        {
-                            if(nbh[j]->getCurrentSet() == BiDirMotion::SET_W ||
-                               nbh[j]->getOtherSet() == BiDirMotion::SET_W)
-                            {
-                                if (nearestK_)
-                                {
-                                    // Only include neighbors that are mutually k-nearest
-                                    // Relies on NN datastructure returning k-nearest in sorted order
-                                    const base::Cost connCost = opt_->motionCost(nbh[j]->getState(), m->getState());
-                                    const base::Cost worstCost = opt_->motionCost(neighborhoods_[nbh[j]].back()->getState(), nbh[j]->getState());
-
-                                    if(opt_->isCostBetterThan(worstCost, connCost))
-                                        continue;
-                                    else
-                                        yNear.push_back(nbh[j]);
-                                }
-                                else
-                                    yNear.push_back(nbh[j]);
-                            }
-                        }
-
-                        // Sample again if the new sample does not connect to the tree.
-                        if(yNear.empty())
-                            continue;
-
-                        // cache for distance computations
-                        //
-                        // Our cost caches only increase in size, so they're only
-                        // resized if they can't fit the current neighborhood
-                        if (costs.size() < yNear.size())
-                        {
-                            costs.resize(yNear.size());
-                            incCosts.resize(yNear.size());
-                            sortedCostIndices.resize(yNear.size());
-                        }
-
-                        // Finding the nearest neighbor to connect to
-                        // By default, neighborhood states are sorted by cost, and collision checking
-                        // is performed in increasing order of cost
-                        //
-                        // calculate all costs and distances
-                        for (std::size_t i = 0 ; i < yNear.size(); ++i)
-                        {
-                            incCosts[i] = opt_->motionCost(yNear[i]->getState(), m->getState());
-
-                            // Which cost should we get?
-                            base::Cost yNearCost;
-                            if (nbh[i]->getCurrentSet() == BiDirMotion::SET_W)
-                                yNearCost = yNear[i]->getCost();
-                            else
-                                yNearCost = yNear[i]->getOtherCost();
-
-                            costs[i] = opt_->combineCosts(yNearCost, incCosts[i]);
-                        }
-
-                        // sort the nodes
-                        //
-                        // we're using index-value pairs so that we can get at
-                        // original, unsorted indices
-                        for (std::size_t i = 0; i < yNear.size(); ++i)
-                            sortedCostIndices[i] = i;
-                        std::sort(sortedCostIndices.begin(), sortedCostIndices.begin() + yNear.size(),
-                                  compareFn);
-
-                        // collision check until a valid motion is found
-                       for (std::vector<std::size_t>::const_iterator i = sortedCostIndices.begin();
-                            i != sortedCostIndices.begin() + yNear.size();
-                            ++i)
-                       {
-                           if(si_->checkMotion(yNear[*i]->getState(), m->getState()))
-                           {
-                               const base::Cost incCost = opt_->motionCost(yNear[*i]->getState(), m->getState());
-                               if (nbh[*i]->getCurrentSet() == BiDirMotion::SET_W)
-                               {
-                                   m->setParent(yNear[*i]);
-                                   yNear[*i]->getChildren().push_back(m);
-                                   m->setCost(opt_->combineCosts(yNear[*i]->getCost(), incCost));
-                                   m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), heurGoalState_[tree_]));
-                                   m->setCurrentSet(BiDirMotion::SET_H);
-                                   H[tree_].insert(m);
-                               }
-                               else
-                               {
-                                   m->setOtherParent(yNear[*i]);
-                                   yNear[*i]->getOtherChildren().push_back(m);
-                                   m->setOtherCost(opt_->combineCosts(yNear[*i]->getOtherCost(), incCost));
-                                   m->setOtherHeuristicCost(opt_->motionCostHeuristic(m->getState(), heurGoalState_[(tree_+1)%2]));
-                                   m->setOtherCurrentSet(BiDirMotion::SET_H);
-                                   H[(tree_+1)/2].insert(m);
-                               }
-
-                               nn_->add(m);
-                               saveNeighborhood(nn_, m);
-                               if(nearestK_)
-                                   updateKNeighborhood(m,nbh);
-                               else
-                                   updateNeighborhood(m, nbh);
-
-                               z = m;
-                               break;
-                           }
-                       }
-                    } // While H_[tree_] empty
-                }// Extended BFMT
-            } // If H_[both] are empty
-            else
-                chooseTreeAndExpansionNode(z);
+            chooseTreeAndExpansionNode(z);
         }
     }
-
     earlyFailure = false;
     return earlyFailure;
+}
+
+void BFMT::insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
+
+    // Sample and connect samples to tree only if there is
+    // a possibility to connect to unvisited nodes.
+    std::vector<BiDirMotion*>  nbh;
+    std::vector<base::Cost>    costs;
+    std::vector<base::Cost>    incCosts;
+    std::vector<std::size_t>   sortedCostIndices;
+
+    // our functor for sorting nearest neighbors
+    CostIndexCompare compareFn(costs, *opt_);
+
+    BiDirMotion *m = new BiDirMotion(si_, &tree_);
+    while (!ptc && H[tree_].empty())
+    {
+        // Get new sample and check whether it is valid.
+        sampler_->sampleUniform(m->getState());
+        if(!si_->isValid(m->getState()))
+            continue;
+
+        // Get neighbours of the new sample.
+        std::vector<BiDirMotion*> yNear;
+        if(nearestK_)
+            nn_->nearestK(m, NNk, nbh);
+        else
+            nn_->nearestR(m, NNr, nbh);
+
+        yNear.reserve(nbh.size());
+        for(std::size_t j = 0; j < nbh.size(); ++j)
+        {
+            if(nbh[j]->getCurrentSet() == BiDirMotion::SET_NULL)
+            {
+                if (nearestK_)
+                {
+                    // Only include neighbors that are mutually k-nearest
+                    // Relies on NN datastructure returning k-nearest in sorted order
+                    const base::Cost connCost = opt_->motionCost(nbh[j]->getState(), m->getState());
+                    const base::Cost worstCost = opt_->motionCost(neighborhoods_[nbh[j]].back()->getState(), nbh[j]->getState());
+
+                    if(opt_->isCostBetterThan(worstCost, connCost))
+                        continue;
+                    else
+                        yNear.push_back(nbh[j]);
+                }
+                else
+                    yNear.push_back(nbh[j]);
+            }
+        }
+
+        // Sample again if the new sample does not connect to the tree.
+        if(yNear.empty())
+            continue;
+
+        // cache for distance computations
+        //
+        // Our cost caches only increase in size, so they're only
+        // resized if they can't fit the current neighborhood
+        if (costs.size() < yNear.size())
+        {
+            costs.resize(yNear.size());
+            incCosts.resize(yNear.size());
+            sortedCostIndices.resize(yNear.size());
+        }
+
+        // Finding the nearest neighbor to connect to
+        // By default, neighborhood states are sorted by cost, and collision checking
+        // is performed in increasing order of cost
+        //
+        // calculate all costs and distances
+        for (std::size_t i = 0 ; i < yNear.size(); ++i)
+        {
+            incCosts[i] = opt_->motionCost(yNear[i]->getState(), m->getState());
+            costs[i] = opt_->combineCosts(yNear[i]->getCost(), incCosts[i]);
+        }
+
+        // sort the nodes
+        //
+        // we're using index-value pairs so that we can get at
+        // original, unsorted indices
+        for (std::size_t i = 0; i < yNear.size(); ++i)
+            sortedCostIndices[i] = i;
+        std::sort(sortedCostIndices.begin(), sortedCostIndices.begin() + yNear.size(),
+                  compareFn);
+
+        // collision check until a valid motion is found
+       for (std::vector<std::size_t>::const_iterator i = sortedCostIndices.begin();
+            i != sortedCostIndices.begin() + yNear.size();
+            ++i)
+       {
+            ++collisionChecks_;
+           if(si_->checkMotion(yNear[*i]->getState(), m->getState()))
+           {
+               const base::Cost incCost = opt_->motionCost(yNear[*i]->getState(), m->getState());
+               m->setParent(yNear[*i]);
+               yNear[*i]->getChildren().push_back(m);
+               m->setCost(opt_->combineCosts(yNear[*i]->getCost(), incCost));
+               m->setHeuristicCost(opt_->motionCostHeuristic(m->getState(), heurGoalState_[tree_]));
+               m->setCurrentSet(BiDirMotion::SET_H);
+               H_elements[tree_][m] = H[tree_].insert(m);
+
+               nn_->add(m);
+               saveNeighborhood(nn_, m);
+               if(nearestK_)
+                   updateKNeighborhood(m,nbh);
+               else
+                   updateNeighborhood(m, nbh);
+
+               break;
+           }
+       }
+    } // While H_[tree_] empty
 }
 
 bool BFMT::termination( BiDirMotion *&z, BiDirMotion *&connection_Point, const base::PlannerTerminationCondition& ptc ) {
@@ -806,8 +788,6 @@ bool BFMT::termination( BiDirMotion *&z, BiDirMotion *&connection_Point, const b
 
 // Choose exploration tree and node z to expand
 void BFMT::chooseTreeAndExpansionNode( BiDirMotion *&z ) {
-    BiDirMotion *z1, *z2;
-
     //std::vector<std::string> treestrings;
     //treestrings.push_back("FWD");
     //treestrings.push_back("REV");
@@ -827,6 +807,7 @@ void BFMT::chooseTreeAndExpansionNode( BiDirMotion *&z ) {
             break;
 
         case CHOOSE_SMALLEST_Z:
+            BiDirMotion *z1, *z2;
             //std::cout << "Balance! ";
             if (H[(tree_+1) % 2].empty()) {
                 //std::cout << "(Tree " << treestrings[(tree_+1) % 2] << " empty!!)";
@@ -895,10 +876,10 @@ void BFMT::updateNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion*> nb
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
     {
-        // If CLOSED we do nothing since this neighborhood will never be required again.
-        // TODO: is this true for BFMT?
-        if(nbh[i]->getCurrentSet() == BiDirMotion::SET_W ||
-           nbh[i]->getOtherSet() == BiDirMotion::SET_W)
+        // If CLOSED, that neighborhood won't be used again.
+        // Else, if neighhboorhod already exists, we have attach the new sample.
+        // TODO: check if we want this strategy or update all neighborhoods.
+        if(nbh[i]->getCurrentSet() == BiDirMotion::SET_NULL)
             continue;
         else
         {
@@ -914,10 +895,10 @@ void BFMT::updateKNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion *> 
 {
     for(std::size_t i = 0; i < nbh.size(); ++i)
     {
-        // If CLOSED, the neighborhood already exists. If neighhboorhod already exists, we have
-        // to insert the node in the corresponding place of the neighborhood of the neighbor of m.
-        if(nbh[i]->getCurrentSet() == BiDirMotion::SET_W ||
-           nbh[i]->getOtherSet() == BiDirMotion::SET_W)
+        // If CLOSED, that neighborhood won't be used again.
+        // Else, if neighhboorhod already exists, we have to insert the node in
+        // the corresponding place of the neighborhood of the neighbor of m.
+        if(nbh[i]->getCurrentSet() == BiDirMotion::SET_NULL)
             continue;
         else if (neighborhoods_.find(nbh[i]) != neighborhoods_.end())
         {
@@ -963,20 +944,20 @@ void BFMT::saveTree(const std::string &filename)
                 << motions[i]->getAnyParent(tree)->getState()->as<base::RealVectorStateSpace::StateType>()->values[0] << "\t"
                 << motions[i]->getAnyParent(tree)->getState()->as<base::RealVectorStateSpace::StateType>()->values[1] << "\t";
 
-            if (tree == 0) {
+            /*if (tree == 0) {
                ofs << 0;
             }
             else if (tree == 1) {
                ofs << 1;
             }
-            else { ofs << 2;}
-                   /*if (motions[i]->getCurrentSet() == BiDirMotion::SET_NULL) {
+            else { ofs << 2;}*/
+                   if (motions[i]->getCurrentSet() == BiDirMotion::SET_NULL) {
                        ofs << 0;
                    }
                    else if (motions[i]->getOtherSet() == BiDirMotion::SET_NULL) {
                        ofs << 1;
                    }
-                   else { ofs << 2;}*/
+                   else { ofs << 2;}
 
             ofs << std::endl;
                    /*motions[i]->getHeuristicCost() << "\t"

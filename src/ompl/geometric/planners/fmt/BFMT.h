@@ -144,35 +144,35 @@ namespace ompl {
                 heuristics_ = h;
             }
 
-             /** \brief Returns true if the heap is ordered taking into account
-                 cost to go heuristics */
-             bool getHeuristics() const
-             {
-                 return heuristics_;
-             }
+            /** \brief Returns true if the heap is ordered taking into account
+            cost to go heuristics */
+            bool getHeuristics() const
+            {
+                return heuristics_;
+            }
 
-             /** \brief Sets the collision check caching to save calls to the collision
-                 checker with slightly memory usage as a counterpart */
-             void setCacheCC(bool ccc)
-             {
-                 cacheCC_ = ccc;
-             }
+            /** \brief Sets the collision check caching to save calls to the collision
+            checker with slightly memory usage as a counterpart */
+            void setCacheCC(bool ccc)
+            {
+                cacheCC_ = ccc;
+            }
 
-             /** \brief Get the state of the collision check caching */
-             bool getCacheCC() const
-             {
-                 return cacheCC_;
-             }
+            /** \brief Get the state of the collision check caching */
+            bool getCacheCC() const
+            {
+                return cacheCC_;
+            }
 
-             void setExtendedFMT(bool efmt)
-             {
-                 extendedFMT_ = efmt;
-             }
+            void setExtendedFMT(bool efmt)
+            {
+                extendedFMT_ = efmt;
+            }
 
-             bool getExtededFMT() const
-             {
-                 return extendedFMT_;
-             }
+            bool getExtededFMT() const
+            {
+                return extendedFMT_;
+            }
 
             void saveTree(const std::string &filename);
 
@@ -321,7 +321,7 @@ namespace ompl {
                 base::OptimizationObjective* opt_;
                 bool heuristics_;
             };
-            
+
             // Heap structure for storing the best node for expansion in either the fwd or rev trees
             typedef ompl::BinaryHeap<BiDirMotion*, BiDirMotionCompare> BiDirMotionBinHeap;
             
@@ -361,6 +361,8 @@ namespace ompl {
             void updateNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion *> nbh);
 
             void updateKNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion*> nbh);
+
+            void insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc);
 
             // Member variables
             unsigned int                numSamples_;
