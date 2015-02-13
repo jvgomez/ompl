@@ -31,6 +31,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     , heuristics_(false)
     , cacheCC_(false)
     , extendedFMT_(true)
+    , steerStrategy_(false)
 {
     specs_.approximateSolutions = false;
     specs_.directed             = false;
@@ -42,6 +43,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     ompl::base::Planner::declareParam<bool>("optimality", this, &BFMT::setTermination, &BFMT::getTermination, "0,1" );
     ompl::base::Planner::declareParam<bool>("heuristics", this, &BFMT::setHeuristics, &BFMT::getHeuristics, "0,1");
     ompl::base::Planner::declareParam<bool>("cache_cc", this, &BFMT::setCacheCC, &BFMT::getCacheCC, "0,1");
+    ompl::base::Planner::declareParam<bool>("steer_strategy", this, &BFMT::setSS, &BFMT::getSS, "0,1");
 }
 
 BFMT::BFMT(const base::SpaceInformationPtr &si, const bool precompute_NN)
@@ -60,6 +62,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si, const bool precompute_NN)
     , heuristics_(false)
     , cacheCC_(true)
     , extendedFMT_(true)
+    , steerStrategy_(false)
 {
 }
 
@@ -80,6 +83,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si, const enum ExploreType explorati
     , heuristics_(false)
     , cacheCC_(true)
     , extendedFMT_(true)
+    , steerStrategy_(false)
 {
 }
 
@@ -639,19 +643,23 @@ bool BFMT::plan( BiDirMotion *x_init, BiDirMotion *x_goal,
                 earlyFailure = true;
                 return earlyFailure;
             } // Extended BFMT starts here.
-            else if (H[tree_].empty())
-                insertNewSampleInOpen(ptc);
-            /*else if (H[(tree_+1) % 2].empty()) {
-                swapTrees();
-                insertNewSampleInOpen(ptc);
-            }*/
-
+            else if (H[tree_].empty() && extendedFMT_) {
+                if(steerStrategy_)
+                    steerNewSampleInOpen(ptc);
+                else
+                    insertNewSampleInOpen(ptc);
+            }
             chooseTreeAndExpansionNode(z);
         }
     }
     earlyFailure = false;
     return earlyFailure;
 }
+
+void BFMT::steerNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
+    std::cout << "Dummy!" << '\n';
+}
+
 
 void BFMT::insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
 

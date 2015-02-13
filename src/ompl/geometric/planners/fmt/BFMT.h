@@ -174,6 +174,16 @@ namespace ompl {
                 return extendedFMT_;
             }
 
+            void setSS(bool ss)
+            {
+                steerStrategy_ = ss;
+            }
+
+            bool getSS() const
+            {
+                return steerStrategy_;
+            }
+
             void saveTree(const std::string &filename);
 
             // Specialized class for bi-directional trees
@@ -364,6 +374,8 @@ namespace ompl {
 
             void insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc);
 
+            void steerNewSampleInOpen(const base::PlannerTerminationCondition& ptc);
+
             // Member variables
             unsigned int                numSamples_;
             double                      radiusMultiplier_;
@@ -395,6 +407,8 @@ namespace ompl {
             bool cacheCC_;
 
             bool extendedFMT_;
+
+            bool steerStrategy_;
 
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare
