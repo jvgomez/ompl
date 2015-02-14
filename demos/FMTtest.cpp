@@ -189,8 +189,8 @@ int main(int argc, char ** argv)
 
     //env.getPlanner()->as<og::FMT>()->setNearestK(false);
     env.getPlanner()->as<og::BFMT>()->setNumSamples(5);
-    env.getPlanner()->as<og::BFMT>()->setHeuristics(true);
-    env.getPlanner()->as<og::BFMT>()->setSS(true);
+    //env.getPlanner()->as<og::BFMT>()->setSS(true);
+
 
     //if (env.plan(10, 1560, 1845, 30))
     if (env.plan(800, 800, 1500, 200))

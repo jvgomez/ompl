@@ -184,6 +184,16 @@ namespace ompl {
                 return steerStrategy_;
             }
 
+            void setOneSample(bool os)
+            {
+                oneSample_ = os;
+            }
+
+            bool getOneSample() const
+            {
+                return oneSample_;
+            }
+
             void saveTree(const std::string &filename);
 
             // Specialized class for bi-directional trees
@@ -409,6 +419,8 @@ namespace ompl {
             bool extendedFMT_;
 
             bool steerStrategy_;
+
+            bool oneSample_;
 
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare
