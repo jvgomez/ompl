@@ -174,16 +174,6 @@ namespace ompl {
                 return extendedFMT_;
             }
 
-            void setSS(bool ss)
-            {
-                steerStrategy_ = ss;
-            }
-
-            bool getSS() const
-            {
-                return steerStrategy_;
-            }
-
             void setOneSample(bool os)
             {
                 oneSample_ = os;
@@ -417,8 +407,6 @@ namespace ompl {
             bool cacheCC_;
 
             bool extendedFMT_;
-
-            bool steerStrategy_;
 
             bool oneSample_;
 

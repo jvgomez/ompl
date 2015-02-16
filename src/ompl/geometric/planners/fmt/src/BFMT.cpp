@@ -31,8 +31,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     , heuristics_(true)
     , cacheCC_(true)
     , extendedFMT_(true)
-    , steerStrategy_(false)
-    , oneSample_(true)
+    , oneSample_(false)
 {
     specs_.approximateSolutions = false;
     specs_.directed             = false;
@@ -44,7 +43,6 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     ompl::base::Planner::declareParam<bool>("optimality", this, &BFMT::setTermination, &BFMT::getTermination, "0,1" );
     ompl::base::Planner::declareParam<bool>("heuristics", this, &BFMT::setHeuristics, &BFMT::getHeuristics, "0,1");
     ompl::base::Planner::declareParam<bool>("cache_cc", this, &BFMT::setCacheCC, &BFMT::getCacheCC, "0,1");
-    ompl::base::Planner::declareParam<bool>("steer_strategy", this, &BFMT::setSS, &BFMT::getSS, "0,1");
     ompl::base::Planner::declareParam<bool>("one_sample", this, &BFMT::setOneSample, &BFMT::getOneSample, "0,1");
 
 }
@@ -65,8 +63,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si, const bool precompute_NN)
     , heuristics_(true)
     , cacheCC_(true)
     , extendedFMT_(true)
-    , steerStrategy_(false)
-    , oneSample_(true)
+    , oneSample_(false)
 {
 }
 
@@ -87,8 +84,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si, const enum ExploreType explorati
     , heuristics_(true)
     , cacheCC_(true)
     , extendedFMT_(true)
-    , steerStrategy_(false)
-    , oneSample_(true)
+    , oneSample_(false)
 {
 }
 
@@ -635,7 +631,6 @@ bool BFMT::plan( BiDirMotion *x_init, BiDirMotion *x_goal,
     BiDirMotion *z = x_init;
     
     while (success == false) {
-        std::cout << "   Consumed!" << '\n';
         expandTreeFromNode( z, connection_Point );
 
         // Check if the algorithm should terminate.  Possibly redefines connection_Point.
@@ -650,22 +645,15 @@ bool BFMT::plan( BiDirMotion *x_init, BiDirMotion *x_goal,
                         return earlyFailure;
                     }
                 }
-                else { // However, if eFMT is enabled, run it.
-                    if(steerStrategy_)
-                        steerNewSampleInOpen(ptc);
-                    else
-                        insertNewSampleInOpen(ptc);
-                }
+                else // However, if eFMT is enabled, run it.
+                    insertNewSampleInOpen(ptc);
             }
             // Now, if oneSample_, it could happen that this point is reached with
             // both heaps empty. Then, keep sampling alternatively.
             if (oneSample_ && H[tree_].empty() && H[(tree_+1)%2].empty()) {
                 while (H[tree_].empty() && H[(tree_+1)%2].empty()) {
                     swapTrees();
-                    if(steerStrategy_)
-                        steerNewSampleInOpen(ptc);
-                    else
-                        insertNewSampleInOpen(ptc);
+                    insertNewSampleInOpen(ptc);
                 }
             }
             // This function will be always reached with at least one state in one heap.
@@ -675,11 +663,6 @@ bool BFMT::plan( BiDirMotion *x_init, BiDirMotion *x_goal,
     earlyFailure = false;
     return earlyFailure;
 }
-
-void BFMT::steerNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
-    std::cout << "Dummy!" << '\n';
-}
-
 
 void BFMT::insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
 
@@ -697,7 +680,7 @@ void BFMT::insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
     bool oneSample = true;
     while (!ptc && H[tree_].empty() && oneSample)
     {
-        std::cout << "Sampled!" << '\n';
+        if (oneSample_) oneSample = false;
         // Get new sample and check whether it is valid.
         sampler_->sampleUniform(m->getState());
         if(!si_->isValid(m->getState()))
@@ -775,7 +758,6 @@ void BFMT::insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
             ++collisionChecks_;
            if(si_->checkMotion(yNear[*i]->getState(), m->getState()))
            {
-               std::cout << " Inserted!" << '\n';
                const base::Cost incCost = opt_->motionCost(yNear[*i]->getState(), m->getState());
                m->setParent(yNear[*i]);
                yNear[*i]->getChildren().push_back(m);
@@ -794,7 +776,6 @@ void BFMT::insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc) {
                break;
            }
        }
-       if (oneSample_) oneSample = false;
     } // While H_[tree_] empty
 }
 
@@ -878,7 +859,6 @@ void BFMT::tracePath( BiDirMotion *z, BiDirMotionPtrs& path ) {
 }
 
 void BFMT::swapTrees() {
-    std::cout << "------------------ Trees swaped" << '\n';
     tree_ = (TreeType) ( (((int) tree_) + 1) % 2 );
 }
 
