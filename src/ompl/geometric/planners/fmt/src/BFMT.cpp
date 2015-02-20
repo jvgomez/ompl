@@ -7,7 +7,6 @@
 #include <ompl/datastructures/NearestNeighborsGNAT.h>
 #include <ompl/base/objectives/PathLengthOptimizationObjective.h>
 #include <ompl/geometric/planners/fmt/BFMT.h>
-// #include "BiDirectionalFMT.h"
 
 #include <fstream>
 #include <ompl/base/spaces/RealVectorStateSpace.h>
@@ -44,6 +43,7 @@ BFMT::BFMT(const base::SpaceInformationPtr &si)
     ompl::base::Planner::declareParam<bool>("heuristics", this, &BFMT::setHeuristics, &BFMT::getHeuristics, "0,1");
     ompl::base::Planner::declareParam<bool>("cache_cc", this, &BFMT::setCacheCC, &BFMT::getCacheCC, "0,1");
     ompl::base::Planner::declareParam<bool>("one_sample", this, &BFMT::setOneSample, &BFMT::getOneSample, "0,1");
+    ompl::base::Planner::declareParam<bool>("extended", this, &BFMT::setExtended, &BFMT::getExtended, "0,1");
 
 }
 
@@ -651,13 +651,17 @@ bool BFMT::plan( BiDirMotion *x_init, BiDirMotion *x_goal,
             // Now, if oneSample_, it could happen that this point is reached with
             // both heaps empty. Then, keep sampling alternatively.
             if (oneSample_ && H[tree_].empty() && H[(tree_+1)%2].empty()) {
-                while (H[tree_].empty() && H[(tree_+1)%2].empty()) {
+                while (!ptc && H[tree_].empty() && H[(tree_+1)%2].empty()) {
                     swapTrees();
                     insertNewSampleInOpen(ptc);
                 }
             }
             // This function will be always reached with at least one state in one heap.
-            chooseTreeAndExpansionNode(z);
+            // However, if ptc terminates, we should skip this.
+            if (!ptc)
+                chooseTreeAndExpansionNode(z);
+            else
+                return true;
         }
     }
     earlyFailure = false;

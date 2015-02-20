@@ -83,7 +83,7 @@ ompl::geometric::FMT3::FMT3(const base::SpaceInformationPtr &si)
     ompl::base::Planner::declareParam<bool>("heuristics", this, &FMT3::setHeuristics, &FMT3::getHeuristics, "0,1");
 
     ompl::base::Planner::declareParam<bool>("leaves_resampling", this, &FMT3::setLR, &FMT3::getLR, "0,1");
-    ompl::base::Planner::declareParam<bool>("validity_check", this, &FMT3::setVC, &FMT3::getVC, "0,1");
+    //ompl::base::Planner::declareParam<bool>("validity_check", this, &FMT3::setVC, &FMT3::getVC, "0,1");
     ompl::base::Planner::declareParam<bool>("selective_conn", this, &FMT3::setSC, &FMT3::getSC, "0,1");
     ompl::base::Planner::declareParam<bool>("rewire", this, &FMT3::setRewirePath, &FMT3::getRewirePath, "0,1");
     ompl::base::Planner::declareParam<bool>("sample_reject", this, &FMT3::setSR, &FMT3::getSR, "0,1");

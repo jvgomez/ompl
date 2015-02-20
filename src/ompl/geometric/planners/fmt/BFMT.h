@@ -164,12 +164,12 @@ namespace ompl {
                 return cacheCC_;
             }
 
-            void setExtendedFMT(bool efmt)
+            void setExtended(bool efmt)
             {
                 extendedFMT_ = efmt;
             }
 
-            bool getExtededFMT() const
+            bool getExtended() const
             {
                 return extendedFMT_;
             }
