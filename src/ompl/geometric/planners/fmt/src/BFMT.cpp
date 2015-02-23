@@ -945,7 +945,7 @@ void BFMT::updateKNeighborhood(BiDirMotion *m, const std::vector<BiDirMotion *> 
 
 void BFMT::saveTree(const std::string &filename)
 {
-    std::ofstream ofs;
+    /*std::ofstream ofs;
     ofs.open(filename.c_str(), std::ofstream::trunc);
     ofs << std::setprecision(6);
     std::vector<BiDirMotion *> motions;
@@ -968,7 +968,7 @@ void BFMT::saveTree(const std::string &filename)
                ofs << 1;
             }
             else { ofs << 2;}*/
-                   if (motions[i]->getCurrentSet() == BiDirMotion::SET_NULL) {
+      /*             if (motions[i]->getCurrentSet() == BiDirMotion::SET_NULL) {
                        ofs << 0;
                    }
                    else if (motions[i]->getOtherSet() == BiDirMotion::SET_NULL) {
@@ -979,7 +979,7 @@ void BFMT::saveTree(const std::string &filename)
             ofs << std::endl;
                    /*motions[i]->getHeuristicCost() << "\t"
                 << opt_->combineCosts(motions[i]->getCost(), motions[i]->getHeuristicCost()) << std::endl;*/
-        }
+       /* }
         else {
             ofs << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[0] << "\t"
                 << motions[i]->getState()->as<base::RealVectorStateSpace::StateType>()->values[1] << "\t"
@@ -992,7 +992,7 @@ void BFMT::saveTree(const std::string &filename)
         }
     }
 
-    ofs.close();
+    ofs.close();*/
 }
 
 }   // End "geometric" namespace

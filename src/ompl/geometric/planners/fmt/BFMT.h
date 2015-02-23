@@ -222,7 +222,7 @@ namespace ompl {
                 
                 /** \brief The state contained by the motion */
                 base::State             *state_;
-                
+
                 BiDirMotion*            parent_[2];         /**< The parent motion in the exploration tree */
                 BiDirMotionPtrs         children_[2];       /**< The set of motions descending from the current motion */
                 SetType                 currentSet_[2];
@@ -230,10 +230,66 @@ namespace ompl {
                 base::Cost              cost_[2];           /**< The cost of this motion */
 
                 /** \brief The minimum cost to go of this motion (heuristically computed) */
-                base::Cost hcost_[2];
+                base::Cost              hcost_[2];
                 /** \brief Contains the connections attempted FROM this node */
                 std::set<BiDirMotion *> collChecksDone_;
 
+                /** \brief Set the cost to go heuristic cost */
+                /*void setOtherHeuristicCost(const base::Cost h)
+                {
+                    hcost_[(*tree_+1) % 2] = h;
+                }*/
+
+                /** \brief Get the cost to go heuristic cost */
+                /*base::Cost getOtherHeuristicCost() const
+                {
+                    return hcost_[(*tree_+1) % 2];
+                }*/
+
+                inline base::Cost       getCost(void)           const           { return this->cost_[*tree_]; }
+                inline base::Cost       getOtherCost(void)      const           { return this->cost_[(*tree_+1) % 2]; }
+                inline void             setCost(double cost)                    { this->cost_[*tree_] = base::Cost(cost); }
+                inline void             setCost(base::Cost cost)                { this->cost_[*tree_] = cost; }
+                //inline void             setOtherCost(base::Cost cost)            { this->cost_[(*tree_+1) % 2] = cost; }
+
+                inline void             setParent(BiDirMotion* parent)          { this->parent_[*tree_] = parent; }
+                //inline void             setOtherParent(BiDirMotion* parent)     { this->parent_[(*tree_+1) % 2] = parent; }
+                inline BiDirMotion*     getParent(void)         const           { return this->parent_[*tree_]; }
+                /*inline BiDirMotion*     getAnyParent(int& tree)                 {
+                    if (this->parent_[*tree_]) {
+                        tree = 0;
+                        return this->parent_[*tree_];
+                    }
+                    else if (this->parent_[(*tree_+1) % 2]) {
+                        tree = 1;
+                        return this->parent_[(*tree_+1) % 2];
+                    }
+                    else return NULL;
+                }*/
+
+                inline void             setChildren(BiDirMotionPtrs children)   { this->children_[*tree_] = children; }
+                //TODO make these return &
+                inline BiDirMotionPtrs  getChildren(void)       const           { return this->children_[*tree_]; }
+                //inline BiDirMotionPtrs  getOtherChildren(void)       const      { return this->children_[(*tree_+1) % 2]; }
+
+                inline void             setCurrentSet(SetType set)              { this->currentSet_[*tree_] = set; }
+                //inline void             setOtherCurrentSet(SetType set)         { this->currentSet_[(*tree_+1) % 2] = set; }
+                inline SetType          getCurrentSet(void)     const           { return this->currentSet_[*tree_]; }
+                inline SetType          getOtherSet(void)       const           { return this->currentSet_[(*tree_+1) % 2]; }
+
+                inline void             setTreeType(TreeType* treePtr)          { this->tree_       = treePtr; }
+                inline TreeType         getTreeType(void)       const           { return *tree_; }
+
+                /** \brief Set the state associated with the motion */
+                void setState(base::State *state) {
+                    state_ = state;
+                }
+
+                /** \brief Get the state associated with the motion */
+                base::State* getState() const {
+                    return state_;
+                }
+                
                 /** \brief Returns true if the connection to m has been already
                     tested and failed because of a collision */
                 bool alreadyCC(BiDirMotion *m)
@@ -260,72 +316,20 @@ namespace ompl {
                 {
                     return hcost_[*tree_];
                 }
-                /** \brief Set the cost to go heuristic cost */
-                void setOtherHeuristicCost(const base::Cost h)
-                {
-                    hcost_[(*tree_+1) % 2] = h;
-                }
-
-                /** \brief Get the cost to go heuristic cost */
-                base::Cost getOtherHeuristicCost() const
-                {
-                    return hcost_[(*tree_+1) % 2];
-                }
-
-                inline base::Cost       getCost(void)           const           { return this->cost_[*tree_]; }
-                inline base::Cost       getOtherCost(void)      const           { return this->cost_[(*tree_+1) % 2]; }
-                inline void             setCost(double cost)                    { this->cost_[*tree_] = base::Cost(cost); }
-                inline void             setCost(base::Cost cost)                { this->cost_[*tree_] = cost; }
-                inline void             setOtherCost(base::Cost cost)            { this->cost_[(*tree_+1) % 2] = cost; }
-
-                inline void             setParent(BiDirMotion* parent)          { this->parent_[*tree_] = parent; }
-                inline void             setOtherParent(BiDirMotion* parent)     { this->parent_[(*tree_+1) % 2] = parent; }
-                inline BiDirMotion*     getParent(void)         const           { return this->parent_[*tree_]; }
-                inline BiDirMotion*     getAnyParent(int& tree)                 {
-                    if (this->parent_[*tree_]) {
-                        tree = 0;
-                        return this->parent_[*tree_];
-                    }
-                    else if (this->parent_[(*tree_+1) % 2]) {
-                        tree = 1;
-                        return this->parent_[(*tree_+1) % 2];
-                    }
-                    else return NULL;
-                }
-
-                inline void             setChildren(BiDirMotionPtrs children)   { this->children_[*tree_] = children; }
-                //TODO make these return &
-                inline BiDirMotionPtrs  getChildren(void)       const           { return this->children_[*tree_]; }
-                inline BiDirMotionPtrs  getOtherChildren(void)       const      { return this->children_[(*tree_+1) % 2]; }
-
-                inline void             setCurrentSet(SetType set)              { this->currentSet_[*tree_] = set; }
-                inline void             setOtherCurrentSet(SetType set)         { this->currentSet_[(*tree_+1) % 2] = set; }
-                inline SetType          getCurrentSet(void)     const           { return this->currentSet_[*tree_]; }
-                inline SetType          getOtherSet(void)       const           { return this->currentSet_[(*tree_+1) % 2]; }
-
-                inline void             setTreeType(TreeType* treePtr)          { this->tree_       = treePtr; }
-                inline TreeType         getTreeType(void)       const           { return *tree_; }
-
-                /** \brief Set the state associated with the motion */
-                void setState(base::State *state) {
-                    state_ = state;
-                }
-
-                /** \brief Get the state associated with the motion */
-                base::State* getState() const {
-                    return state_;
-                }
             };
-
+            
             typedef std::vector<BiDirMotion*> BiDirMotionPtrs;
 
+        protected:
             struct BiDirMotionCompare {
                 bool operator()(const BiDirMotion* p1, const BiDirMotion* p2) const {
                     if (heuristics_)
-                        return opt_->isCostBetterThan(opt_->combineCosts(p1->getCost(), p1->getHeuristicCost()),
-                                                      opt_->combineCosts(p2->getCost(), p2->getHeuristicCost()));
+                        return ( opt_->combineCosts(p1->getCost(), p1->getHeuristicCost()).value() < opt_->combineCosts(p2->getCost(), p2->getHeuristicCost()).value() );
+                        //return opt_->isCostBetterThan(opt_->combineCosts(p1->getCost(), p1->getHeuristicCost()),
+                                                      //opt_->combineCosts(p2->getCost(), p2->getHeuristicCost()));
                     else
-                        return opt_->isCostBetterThan(p1->getCost(), p2->getCost());
+                        return (p1->getCost().value() < p2->getCost().value());
+                        //return opt_->isCostBetterThan(p1->getCost(), p2->getCost());
                 }
 
                 base::OptimizationObjective* opt_;
@@ -409,7 +413,7 @@ namespace ompl {
             bool extendedFMT_;
 
             bool oneSample_;
-
+            
             // For sorting a list of costs and getting only their sorted indices
             struct CostIndexCompare
             {
@@ -419,7 +423,8 @@ namespace ompl {
                 {}
                 bool operator()(unsigned i, unsigned j)
                 {
-                    return opt_.isCostBetterThan(costs_[i],costs_[j]);
+                    return (costs_[i].value() < costs_[j].value());
+                    //return opt_.isCostBetterThan(costs_[i],costs_[j]);
                 }
                 const std::vector<base::Cost>& costs_;
                 const base::OptimizationObjective &opt_;
