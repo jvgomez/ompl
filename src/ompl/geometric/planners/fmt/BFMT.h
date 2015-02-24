@@ -184,7 +184,7 @@ namespace ompl {
                 return oneSample_;
             }
 
-            void saveTree(const std::string &filename);
+            //void saveTree(const std::string &filename);
 
             // Specialized class for bi-directional trees
             class BiDirMotion {
@@ -378,7 +378,7 @@ namespace ompl {
 
             void insertNewSampleInOpen(const base::PlannerTerminationCondition& ptc);
 
-            void steerNewSampleInOpen(const base::PlannerTerminationCondition& ptc);
+            //void steerNewSampleInOpen(const base::PlannerTerminationCondition& ptc);
 
             // Member variables
             unsigned int                numSamples_;
