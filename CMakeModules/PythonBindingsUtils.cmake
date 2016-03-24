@@ -3,22 +3,9 @@ find_package(Boost COMPONENTS python)
 # You can optionally specify the desired version like so:
 #   find_package(Python 2.6)
 find_package(Python QUIET)
-set(ENV{PYTHONPATH} "${PROJECT_BINARY_DIR}/pyplusplus/lib/python${PYTHON_VERSION}/site-packages:$ENV{PYTHONPATH}")
-find_python_module(pyplusplus QUIET)
-find_python_module(pygccxml QUIET)
-find_package(GCCXML QUIET)
-
-if(APPLE)
-    # The latest gccxml can be *compiled* with clang, but cannot *simulate*
-    # clang. If you compiled gccxml with clang, then you have to specify a
-    # g++ compiler by adding the following to PYOMPL_EXTRA_CFLAGS:
-    #   --gccxml-compiler /opt/local/bin/g++-mp-4.8
-    # (You can use other versions of g++ as well.) Note that /usr/bin/g++
-    # is actually clang++ in Xcode 5.0, so that won't work.
-    #
-    # Gccxml mistakenly thinks that OS X is a 32-bit architecture.
-    set(PYOMPL_EXTRA_CFLAGS "-m64")
-endif(APPLE)
+find_python_module(pyplusplus 1.6.0)
+find_python_module(pygccxml 1.7.2)
+find_package(castxml)
 
 if(PYTHON_FOUND AND Boost_PYTHON_LIBRARY)
     include_directories(${PYTHON_INCLUDE_DIRS})
@@ -35,7 +22,7 @@ if(PYTHON_FOUND AND Boost_PYTHON_LIBRARY)
 endif()
 
 if(PYTHON_FOUND AND Boost_PYTHON_LIBRARY AND PY_PYPLUSPLUS
-    AND PY_PYGCCXML AND GCCXML)
+    AND PY_PYGCCXML AND CASTXML)
     # make sure targets are defined only once
     if(NOT TARGET generate_headers)
         # top-level target for updating all-in-one header file for each module
@@ -59,7 +46,7 @@ function(create_module_header_file_target module dir)
     endforeach(header)
     # target for all-in-one header for module
     add_custom_target(${module}.h
-        COMMAND ${CMAKE_COMMAND} -D module=${module}
+        COMMAND ${CMAKE_COMMAND} -D module=${module} -D exclude=${ARGV2}
         -P "${OMPL_CMAKE_UTIL_DIR}/generate_header.cmake"
         DEPENDS ${headers} WORKING_DIRECTORY "${dir}"
         COMMENT "Preparing C++ header file for Python binding generation for module ${module}")
@@ -70,13 +57,9 @@ function(create_module_code_generation_target module dir)
     # target for regenerating code. Cmake is run so that the list of
     # sources for the py_ompl_${module} target (see below) is updated.
     add_custom_target(update_${module}_bindings
-        COMMAND env
-        PYTHONPATH="${PROJECT_BINARY_DIR}/pyplusplus/lib/python${PYTHON_VERSION}/site-packages:$ENV{PYTHONPATH}"
-        ${PYTHON_EXEC}
+        COMMAND time ${PYTHON_EXEC}
         "${CMAKE_CURRENT_SOURCE_DIR}/generate_bindings.py" "${module}"
-        "1>${CMAKE_BINARY_DIR}/pyplusplus_${module}.log" "2>&1"
-        COMMAND ${CMAKE_COMMAND} -D "PATH=${dir}/bindings/${module}"
-        -P "${OMPL_CMAKE_UTIL_DIR}/workaround_for_gccxml_bug.cmake"
+        "2>&1" | tee "${CMAKE_BINARY_DIR}/pyplusplus_${module}.log"
         COMMAND ${CMAKE_COMMAND} ${CMAKE_BINARY_DIR}
         WORKING_DIRECTORY ${dir}
         COMMENT "Creating C++ code for Python module ${module} (see pyplusplus_${module}.log)")
@@ -85,7 +68,7 @@ function(create_module_code_generation_target module dir)
 endfunction(create_module_code_generation_target)
 
 function(create_module_generation_targets module dir)
-    create_module_header_file_target("${module}" "${dir}")
+    create_module_header_file_target("${module}" "${dir}" "${ARGV2}")
     create_module_code_generation_target("${module}" "${dir}")
 endfunction(create_module_generation_targets)
 
