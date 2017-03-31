@@ -96,6 +96,7 @@ namespace ompl
           , usePruning_(true)
           , pruneFraction_(0.05)
           , stopOnSolnChange_(false)
+          , halton_(false)
         {
 #ifdef BITSTAR_DEBUG
             OMPL_WARN("%s: Compiled with debug-level asserts.", Planner::getName().c_str());
@@ -162,6 +163,7 @@ namespace ompl
                                         &BITstar::getStrictQueueOrdering, "0,1");
             Planner::declareParam<bool>("find_approximate_solutions", this, &BITstar::setConsiderApproximateSolutions,
                                         &BITstar::getConsiderApproximateSolutions, "0,1");
+            Planner::declareParam<bool>("use_halton", this, &BITstar::setUseHalton, &BITstar::getUseHalton, "0,1");
 
             // Register my progress info:
             addPlannerProgressProperty("best cost DOUBLE", [this]
@@ -284,7 +286,7 @@ namespace ompl
 
             // Setup the graph, it does not hold a copy of this or Planner::pis_, but uses them to create a NN struct
             // and check for starts/goals, respectively.
-            graphPtr_->setup(Planner::si_, Planner::pdef_, costHelpPtr_, queuePtr_, this, Planner::pis_);
+            graphPtr_->setup(halton_, Planner::si_, Planner::pdef_, costHelpPtr_, queuePtr_, this, Planner::pis_);
 
             // Set the best and pruned costs to the proper objective-based values:
             bestCost_ = costHelpPtr_->infiniteCost();
@@ -1190,6 +1192,16 @@ namespace ompl
             {
                 graphPtr_->setNearestNeighbors<NN>();
             }
+        }
+
+        void BITstar::setUseHalton(bool halton)
+        {
+            halton_ = halton;
+        }
+
+        bool BITstar::getUseHalton() const
+        {
+            return halton_;
         }
 
         std::string BITstar::bestCostProgressProperty() const

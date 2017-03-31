@@ -76,7 +76,8 @@ namespace ompl
 
             /** \brief Setup the ImplicitGraph, must be called before use. Does not take a copy of the
              * PlannerInputStates, but checks it for starts/goals. */
-            void setup(const ompl::base::SpaceInformationPtr &si, const ompl::base::ProblemDefinitionPtr &pdef,
+            void setup(bool halton,
+                       const ompl::base::SpaceInformationPtr &si, const ompl::base::ProblemDefinitionPtr &pdef,
                        const CostHelperPtr &costHelper, const SearchQueuePtr &searchQueue,
                        const ompl::base::Planner *plannerPtr, ompl::base::PlannerInputStates &pis);
 
@@ -325,8 +326,8 @@ namespace ompl
             ompl::RNG rng_;
 
             /** \brief State sampler */
-            //ompl::base::InformedSamplerPtr sampler_;
-            ompl::base::DeterministicStateSamplerPtr sampler_;
+            ompl::base::InformedSamplerPtr sampler_;
+            ompl::base::DeterministicStateSamplerPtr det_sampler_;
 
             /** \brief The start states of the problem as vertices. Constructed as a shared_ptr to give easy access to
              * helper classes */
@@ -435,6 +436,8 @@ namespace ompl
 
             /** \brief Whether to consider approximate solutions (param) */
             bool findApprox_;
+            
+            bool halton_;
             ///////////////////////////////////////////////////////////////////
         };  // class: ImplicitGraph
     }       // geometric

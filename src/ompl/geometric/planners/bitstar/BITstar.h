@@ -290,6 +290,10 @@ namespace ompl
             /** \brief Get whether BIT* is considering approximate solutions. */
             bool getConsiderApproximateSolutions() const;
 
+            void setUseHalton(bool halton);
+
+            bool getUseHalton() const;
+
             /** \brief Set a different nearest neighbours datastructure */
             template <template <typename T> class NN>
             void setNearestNeighbors();
@@ -488,6 +492,8 @@ namespace ompl
 
             /** \brief Whether to stop the planner as soon as the path changes (param) */
             bool stopOnSolnChange_;
+            
+            bool halton_;
             ///////////////////////////////////////////////////////////////////
         };  // class: BITstar
 

@@ -62,7 +62,8 @@ namespace ompl
                     sampler->sampleUniform(rstate);
                     samples.push_back(rstate);
                 }*/
-                std::string filename = "/home/jvgomez/Downloads/haltonSamples.txt";
+                //std::string filename = "/home/jvgomez/Downloads/haltonSamples.txt";
+                std::string filename = "/home/jvgomez/Downloads/Samples_SE2.txt";
                 loadSamplesFromFile(filename);
             }
 
@@ -70,7 +71,7 @@ namespace ompl
             {
                 std::string line;
                 std::ifstream sampleFile(fileName.c_str());
-                std::cout << "Loading from file " << filename.c_str() << std::endl;
+                //std::cout << "Loading from file " << filename.c_str() << std::endl;
                 assert(sampleFile.is_open());
 
                 // read dimension file

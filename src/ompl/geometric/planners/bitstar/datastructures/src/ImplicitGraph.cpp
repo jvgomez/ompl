@@ -82,6 +82,7 @@ namespace ompl
           , queuePtr_(nullptr)
           , rng_()
           , sampler_(nullptr)
+          , det_sampler_(nullptr)
           , startVertices_()
           , goalVertices_()
           , prunedStartVertices_()
@@ -116,10 +117,12 @@ namespace ompl
           , useJustInTimeSampling_(false)
           , dropSamplesOnPrune_(false)
           , findApprox_(false)
+          , halton_(false)
         {
         }
 
-        void BITstar::ImplicitGraph::setup(const ompl::base::SpaceInformationPtr &si,
+        void BITstar::ImplicitGraph::setup(bool halton,
+                                           const ompl::base::SpaceInformationPtr &si,
                                            const ompl::base::ProblemDefinitionPtr &pdef,
                                            const CostHelperPtr &costHelper, const SearchQueuePtr &searchQueue,
                                            const ompl::base::Planner *plannerPtr, ompl::base::PlannerInputStates &pis)
@@ -127,6 +130,8 @@ namespace ompl
             // Store that I am setup so that any debug-level tests will pass. This requires assuring that this function
             // is ordered properly.
             isSetup_ = true;
+            
+            halton_ = halton;
 
             // Store arguments
             si_ = si;
@@ -243,6 +248,7 @@ namespace ompl
             // Sampling
             rng_ = ompl::RNG();
             sampler_.reset();
+            det_sampler_.reset();
 
             // Containers
             startVertices_.clear();
@@ -638,9 +644,12 @@ namespace ompl
                 if (startVertices_.size() > 0u && goalVertices_.size() > 0u)
                 {
                     // There is a start and goal, allocate
-                    //sampler_ = costHelpPtr_->getOptObj()->allocInformedStateSampler(
-                    //    pdef_, std::numeric_limits<unsigned int>::max());
-                    sampler_ = std::make_shared<ompl::base::DeterministicStateSampler>(si_->getStateSpace().get(), std::numeric_limits<unsigned int>::max());
+					sampler_ = costHelpPtr_->getOptObj()->allocInformedStateSampler(
+						pdef_, std::numeric_limits<unsigned int>::max());
+						
+					det_sampler_ = std::make_shared<ompl::base::DeterministicStateSampler>(
+						si_->getStateSpace().get(), std::numeric_limits<unsigned int>::max());
+                    
                 }
                 // No else, this will get allocated when we get the updated start/goal.
 
@@ -879,7 +888,10 @@ namespace ompl
                     sampleDensity = static_cast<double>(samplesInThisBatch_) / approximationMeasure_;
 
                     // Convert that into the number of samples needed for this slice.
-                    dblNum = sampleDensity * sampler_->getInformedMeasure(costSampled_, costReqd);
+                    if (halton_)
+						dblNum = sampleDensity * det_sampler_->getInformedMeasure(costSampled_, costReqd);
+					else
+					    dblNum = sampleDensity * sampler_->getInformedMeasure(costSampled_, costReqd);
 
                     // The integer of the double are definitely sampled
                     totalReqdSamples = numSamples_ + static_cast<unsigned int>(dblNum);
@@ -906,8 +918,11 @@ namespace ompl
                     auto newState = std::make_shared<Vertex>(si_, costHelpPtr_->getOptObj());
 
                     // Sample in the interval [costSampled_, costReqd):
-                    //sampler_->sampleUniform(newState->state(), costSampled_, costReqd);
-                    sampler_->sampleUniform(newState->state());
+                    if (halton_)
+                        det_sampler_->sampleUniform(newState->state());
+                    else
+                        sampler_->sampleUniform(newState->state(), costSampled_, costReqd);
+                        
 
                     // If the state is collision free, add it to the set of free states
                     ++numStateCollisionChecks_;
@@ -1316,12 +1331,18 @@ namespace ompl
 
         bool BITstar::ImplicitGraph::hasInformedMeasure() const
         {
-            return sampler_->hasInformedMeasure();
+			if (halton_)
+                return det_sampler_->hasInformedMeasure();
+			else
+			    return sampler_->hasInformedMeasure();
         }
 
         double BITstar::ImplicitGraph::getInformedMeasure(const ompl::base::Cost &cost) const
         {
-            return sampler_->getInformedMeasure(cost);
+			if (halton_)
+			    return det_sampler_->getInformedMeasure(cost);
+			else
+                return sampler_->getInformedMeasure(cost);
         }
 
         BITstar::VertexConstPtr BITstar::ImplicitGraph::closestVertexToGoal() const
