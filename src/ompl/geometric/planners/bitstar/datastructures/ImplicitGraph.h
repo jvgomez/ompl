@@ -51,6 +51,8 @@
 // include any I use in my .cpp (to avoid dependency loops).
 #include "ompl/geometric/planners/bitstar/BITstar.h"
 
+#include "ompl/base/samplers/deterministicSampler.h"
+
 namespace ompl
 {
     namespace geometric
@@ -323,7 +325,8 @@ namespace ompl
             ompl::RNG rng_;
 
             /** \brief State sampler */
-            ompl::base::InformedSamplerPtr sampler_;
+            //ompl::base::InformedSamplerPtr sampler_;
+            ompl::base::DeterministicStateSamplerPtr sampler_;
 
             /** \brief The start states of the problem as vertices. Constructed as a shared_ptr to give easy access to
              * helper classes */

@@ -638,8 +638,9 @@ namespace ompl
                 if (startVertices_.size() > 0u && goalVertices_.size() > 0u)
                 {
                     // There is a start and goal, allocate
-                    sampler_ = costHelpPtr_->getOptObj()->allocInformedStateSampler(
-                        pdef_, std::numeric_limits<unsigned int>::max());
+                    //sampler_ = costHelpPtr_->getOptObj()->allocInformedStateSampler(
+                    //    pdef_, std::numeric_limits<unsigned int>::max());
+                    sampler_ = std::make_shared<ompl::base::DeterministicStateSampler>(si_->getStateSpace().get(), std::numeric_limits<unsigned int>::max());
                 }
                 // No else, this will get allocated when we get the updated start/goal.
 
@@ -905,7 +906,8 @@ namespace ompl
                     auto newState = std::make_shared<Vertex>(si_, costHelpPtr_->getOptObj());
 
                     // Sample in the interval [costSampled_, costReqd):
-                    sampler_->sampleUniform(newState->state(), costSampled_, costReqd);
+                    //sampler_->sampleUniform(newState->state(), costSampled_, costReqd);
+                    sampler_->sampleUniform(newState->state());
 
                     // If the state is collision free, add it to the set of free states
                     ++numStateCollisionChecks_;
