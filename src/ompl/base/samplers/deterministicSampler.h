@@ -41,7 +41,12 @@ namespace ompl
                 , samplingCount(0)
             {
                 //createNewSamples(maxSamples);
-				std::string filename = "/home/jvgomez/Downloads/haltonSamples.txt";
+                unsigned dimension = this->space_->getDimension();
+                std::string filename;
+                if (dimension == 3)
+					filename = "/home/jvgomez/Downloads/Samples_SE2.txt";
+				else 
+				    filename = "/home/jvgomez/Downloads/Samples_SE3.txt";
                 loadSamplesFromFile(filename);
             }
 
@@ -62,8 +67,12 @@ namespace ompl
                     sampler->sampleUniform(rstate);
                     samples.push_back(rstate);
                 }*/
-                //std::string filename = "/home/jvgomez/Downloads/haltonSamples.txt";
-                std::string filename = "/home/jvgomez/Downloads/Samples_SE2.txt";
+				unsigned dimension = this->space_->getDimension();
+                std::string filename;
+                if (dimension == 3)
+					filename = "/home/jvgomez/Downloads/Samples_SE2.txt";
+				else 
+				    filename = "/home/jvgomez/Downloads/Samples_SE3.txt";
                 loadSamplesFromFile(filename);
             }
 
@@ -111,7 +120,17 @@ namespace ompl
                             reals.push_back(val);
                         }
                         // std::cout << std::endl;
-                        space_->copyFromReals(state, reals);
+                        
+                        if(dimTemp == 7) {
+                            //ompl::base::ScopedState<ompl::base::SE3StateSpace> insertState(si_);
+                            state->as<ompl::base::SE3StateSpace::StateType>()->setXYZ(reals[0], reals[1], reals[2]);
+                            state->as<ompl::base::SE3StateSpace::StateType>()->rotation().setIdentity();
+                            state->as<ompl::base::SE3StateSpace::StateType>()->rotation().setAxisAngle(reals[3],reals[4],reals[5],reals[6]);
+						}
+						else
+						{
+                            space_->copyFromReals(state, reals);
+						}
                         samples.push_back(state);
                     }
                     sampleFile.close();
@@ -215,7 +234,7 @@ namespace ompl
 			}
 			
 			bool hasInformedMeasure() const {
-				return false;
+				return true;
 			}
         };
     }
