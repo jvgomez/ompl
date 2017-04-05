@@ -647,8 +647,8 @@ namespace ompl
 					sampler_ = costHelpPtr_->getOptObj()->allocInformedStateSampler(
 						pdef_, std::numeric_limits<unsigned int>::max());
 						
-					det_sampler_ = std::make_shared<ompl::base::DeterministicStateSampler>(
-						si_->getStateSpace().get(), std::numeric_limits<unsigned int>::max());
+					/*det_sampler_ = std::make_shared<ompl::base::DeterministicStateSampler>(
+						si_->getStateSpace().get(), std::numeric_limits<unsigned int>::max());*/
                     
                 }
                 // No else, this will get allocated when we get the updated start/goal.

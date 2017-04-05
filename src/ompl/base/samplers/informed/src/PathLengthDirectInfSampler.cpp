@@ -47,6 +47,9 @@
 // For std::vector
 #include <vector>
 
+#include "ompl/base/samplers/deterministicSampler.h"
+
+
 namespace ompl
 {
     namespace base
@@ -154,7 +157,9 @@ namespace ompl
             }
 
             // Create a sampler for the whole space that we can use if we have no information
-            baseSampler_ = InformedSampler::space_->allocDefaultStateSampler();
+            //baseSampler_ = InformedSampler::space_->allocDefaultStateSampler();
+            baseSampler_ = std::make_shared<ompl::base::DeterministicStateSampler>(
+						InformedSampler::space_.get(), std::numeric_limits<unsigned int>::max());
 
             // Check if the space is compound
             if (InformedSampler::space_->isCompound() == false)
@@ -349,7 +354,9 @@ namespace ompl
             if (InformedSampler::opt_->isFinite(maxCost) == false)
             {
                 // We don't have a solution yet, we sample from our basic sampler instead...
+                //std::cout << "getting sample" << std::endl;
                 baseSampler_->sampleUniform(statePtr);
+                //InformedSampler::space_->printState(statePtr);
 
                 // Up our counter by one:
                 ++(*iters);
@@ -367,7 +374,8 @@ namespace ompl
                 // When the summed measure of the PHSes are suitably large, it makes more sense to just sample from the
                 // entire planning space and keep the sample if it lies in any PHS
                 // Check if the average measure is greater than half the domain's measure. Half is an arbitrary number.
-                if (informedSubSpace_->getMeasure() < summedMeasure_ / static_cast<double>(listPhsPtrs_.size()))
+                foundSample = sampleBoundsRejectPhs(statePtr, iters);
+                /*if (informedSubSpace_->getMeasure() < summedMeasure_ / static_cast<double>(listPhsPtrs_.size()))
                 {
                     // The measure is large, sample from the entire world and keep if it's in any PHS
                     foundSample = sampleBoundsRejectPhs(statePtr, iters);
@@ -377,7 +385,7 @@ namespace ompl
                     // The measure is sufficiently small that we will directly sample the PHSes, with the weighting
                     // given by their relative measures
                     foundSample = samplePhsRejectBounds(statePtr, iters);
-                }
+                }*/
             }
 
             // Return:
@@ -394,6 +402,7 @@ namespace ompl
             while (foundSample == false && *iters < InformedSampler::numIters_)
             {
                 // Generate a random sample
+				//std::cout << "samplerBoundsReject" << std::endl;
                 baseSampler_->sampleUniform(statePtr);
 
                 // The informed substate
@@ -479,6 +488,7 @@ namespace ompl
             }
             else
             {
+				
                 // Yes, we need to also sample the uninformed subspace
                 // Variables
                 // A state for the uninformed subspace

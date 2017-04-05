@@ -40,6 +40,8 @@ namespace ompl
                 : StateSampler(ss)
                 , samplingCount(0)
             {
+				//std::cout << "DET SAMPLER CREATED" << std::endl;
+
                 //createNewSamples(maxSamples);
                 unsigned dimension = this->space_->getDimension();
                 std::string filename;
@@ -140,6 +142,7 @@ namespace ompl
 
             ~DeterministicStateSampler()
             {
+				//std::cout << "DESTRUCTION" << std::endl;
                 for(unsigned int i = 0; i < samples.size(); i++)
                 {
                     this->space_->freeState(samples[i]);
@@ -176,6 +179,7 @@ namespace ompl
             /* Reset the state sampler. */
             void reset()
             {
+				//std::cout << "RESET CALLED" << std::endl;
                 samplingCount = 0;
             }
 
@@ -199,7 +203,7 @@ namespace ompl
 //                for (unsigned int i = 0 ; i < dim ; ++i)
 //                    rstate->values[i] = static_cast<RealVectorStateSpace::StateType*>(samples[samplingCount])->values[i];
 
-                samplingCount++;
+                ++samplingCount;
             }
 
             void sampleUniformNear(State *state, const State *near, const double distance)
